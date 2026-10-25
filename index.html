@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#123e3b">
+  <meta name="description" content="Explora el significado de 465 nombres de calles de Providencia. Mapa y catálogo con fuentes y estado de investigación.">
+  <title>Calles con historia · Providencia</title>
+  <link rel="stylesheet" href="./maplibre-gl.css">
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./maplibre-gl.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+<header><a class="brand" href="./"><span class="mark" aria-hidden="true">╋</span><span>Calles con historia<small>PROVIDENCIA · ATLAS DE NOMBRES</small></span></a><nav><a href="./calles.geojson" download>Descargar GeoJSON <span aria-hidden="true">↗</span></a><button id="about-open">Sobre el proyecto</button></nav></header>
+<main>
+  <aside class="sidebar" aria-label="Catálogo de calles">
+    <section class="intro"><p class="eyebrow">LA CIUDAD TAMBIÉN SE LEE</p><h1>Cada calle,<br>una historia.</h1><p>Encuentra un nombre y descubre a quién o a qué hace referencia.</p><div class="stats"><strong id="total">—</strong> nombres <span>·</span> <strong id="segments">—</strong> tramos</div></section>
+    <section class="search-section">
+      <label for="search">Buscar una calle</label><div class="searchbox"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Prueba «Andrés Bello»" autocomplete="off"></div>
+      <div class="filters"><div><label for="type">Tipo de vía</label><select id="type"><option value="">Todos los tipos</option></select></div><div><label for="state">Investigación</label><select id="state"><option value="">Todos los estados</option><option value="RESEÑA_LOCAL">Reseña local</option><option value="REFERENTE_PROPUESTO">Referente propuesto</option><option value="SIGNIFICADO_LITERAL">Significado literal</option><option value="RESEÑA_POR_CORROBORAR">Reseña por corroborar</option><option value="PENDIENTE">Sin identificar</option><option value="IDENTIDAD_POR_VERIFICAR">Identidad por verificar</option></select></div></div>
+      <div class="result-heading"><span id="count" role="status">Cargando catálogo…</span><button id="reset">Limpiar</button></div>
+    </section>
+    <div id="results" class="results" aria-label="Resultados"></div>
+    <footer>Catálogo preliminar · Fuentes y dudas visibles.</footer>
+  </aside>
+  <section class="map-section" aria-label="Mapa interactivo de calles">
+    <div id="map"></div><div id="map-status" class="map-status" role="status">Preparando el mapa…</div>
+    <button id="extent" class="extent" title="Ver todas las calles">⌖ Ver Providencia</button>
+    <div class="map-caption"><b>Explora Providencia</b><span>Selecciona una línea o busca en el catálogo.</span></div>
+    <div class="legend"><span><i class="line"></i>Calles del catálogo</span><span><i class="line selected"></i>Nombre seleccionado</span></div>
+    <section id="detail" class="detail" aria-label="Significado de la calle" hidden>
+      <button id="close-detail" class="close" aria-label="Cerrar ficha">×</button>
+      <p class="eyebrow" id="detail-type"></p><h2 id="detail-name"></h2><span id="detail-state" class="badge"></span>
+      <p id="detail-ref" class="referent"></p><p id="detail-description"></p>
+      <p id="detail-notes" class="notes"></p>
+      <a id="detail-source" target="_blank" rel="noopener noreferrer">Consultar fuente ↗</a>
+      <p id="detail-no-source" class="notes">Sin fuente documental de denominación.</p>
+      <div class="detail-bottom"><span id="detail-count"></span><button id="copy-link">Copiar enlace</button></div>
+    </section>
+  </section>
+</main>
+<dialog id="about"><button id="about-close" class="close" aria-label="Cerrar información">×</button><p class="eyebrow">EL PROYECTO</p><h2>Leer la ciudad a través de sus nombres.</h2><p>Este atlas enlaza los 2.855 registros del archivo Estudio_Nombres_de_calles.geojson con un catálogo de 465 nombres exactos.</p><p><strong>La investigación es preliminar.</strong> Una reseña local recoge una atribución histórica. Un referente propuesto tiene biografía documentada, pero su vínculo con esta calle necesita confirmación. El significado literal explica la palabra, no el motivo de su elección. Los casos sin identificar se muestran sin atribuirles una historia.</p><p>La selección destaca todos los tramos que comparten el nombre exacto, aunque estén separados. Las cifras son registros de la capa, no calles físicas distintas.</p><p>Geometrías aportadas por el usuario, conservadas sin modificación. Catálogo revisado el 24 de octubre de 2026. Mapa base: OpenFreeMap, OpenMapTiles y OpenStreetMap; visualización con MapLibre GL JS, Web Mercator.</p><p><a href="./catalogo.csv" download>Descargar catálogo CSV</a> · <a href="./validation.json">Ver validación de la unión</a></p></dialog>
+<noscript>Activa JavaScript para explorar el mapa. Puedes descargar el catálogo y el GeoJSON desde los enlaces de esta página.</noscript>
+</body></html>

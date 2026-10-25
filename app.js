@@ -243,20 +243,14 @@ function applyMapFilter() {
   map.setFilter('hit', filter);
 }
 
-function setupMapLayers() {
-  if (!map.getSource('streets')) {
-    map.addSource('streets', { type: 'geojson', data });
-  }
-  if (!map.getSource('selection')) {
-    map.addSource('selection', { type: 'geojson', data: empty });
-  }
-
-  // Capa principal con colores semánticos según estado de investigación
-  if (!map.getLayer('streets')) {
-    map.addLayer({
+function getStreetsLayersDefinition() {
+  const filter = ['in', ['get', 'NOMBRE_ART'], ['literal', visibleNames]];
+  return [
+    {
       id: 'streets',
       type: 'line',
       source: 'streets',
+      filter: filter,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': [
@@ -272,37 +266,65 @@ function setupMapLayers() {
         'line-width': ['interpolate', ['linear'], ['zoom'], 11, 1.8, 16, 4.5],
         'line-opacity': 0.85
       }
-    });
-  }
-
-  // Halo y línea para la calle seleccionada
-  if (!map.getLayer('selection-halo')) {
-    map.addLayer({
+    },
+    {
       id: 'selection-halo',
       type: 'line',
       source: 'selection',
       paint: { 'line-color': '#ffffff', 'line-width': 10 }
-    });
-  }
-
-  if (!map.getLayer('selection-line')) {
-    map.addLayer({
+    },
+    {
       id: 'selection-line',
       type: 'line',
       source: 'selection',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: { 'line-color': '#b65c22', 'line-width': 5 }
-    });
-  }
-
-  // Capa invisible para facilitar clics y hover
-  if (!map.getLayer('hit')) {
-    map.addLayer({
+    },
+    {
       id: 'hit',
       type: 'line',
       source: 'streets',
+      filter: filter,
       paint: { 'line-color': '#000000', 'line-opacity': 0, 'line-width': 16 }
+    }
+  ];
+}
+
+function injectLayersIntoStyle(baseStyle) {
+  const style = JSON.parse(JSON.stringify(baseStyle));
+  style.sources = style.sources || {};
+  style.sources.streets = { type: 'geojson', data: data || empty };
+  style.sources.selection = {
+    type: 'geojson',
+    data: (selected && grouped.has(selected))
+      ? { type: 'FeatureCollection', features: grouped.get(selected) }
+      : empty
+  };
+  style.layers = style.layers || [];
+  style.layers = style.layers.filter((l) => !['streets', 'selection-halo', 'selection-line', 'hit'].includes(l.id));
+  style.layers.push(...getStreetsLayersDefinition());
+  return style;
+}
+
+function setupMapLayers() {
+  if (!map) return;
+  if (!map.getSource('streets') && data) {
+    map.addSource('streets', { type: 'geojson', data });
+  }
+  if (!map.getSource('selection')) {
+    map.addSource('selection', {
+      type: 'geojson',
+      data: (selected && grouped.has(selected))
+        ? { type: 'FeatureCollection', features: grouped.get(selected) }
+        : empty
     });
+  }
+
+  const defs = getStreetsLayersDefinition();
+  for (const layer of defs) {
+    if (!map.getLayer(layer.id)) {
+      map.addLayer(layer);
+    }
   }
 }
 
@@ -379,23 +401,31 @@ async function changeBasemap(styleKey) {
   if (!mapReady || !map) return;
 
   try {
-    let styleJson;
+    let rawStyle;
     if (cfg.type === 'url') {
       const resp = await fetch(cfg.url, { signal: AbortSignal.timeout(9000) });
       if (!resp.ok) throw new Error('Basemap style unavailable');
-      styleJson = await resp.json();
+      rawStyle = await resp.json();
     } else {
-      styleJson = cfg.style;
+      rawStyle = cfg.style;
     }
 
-    map.setStyle(styleJson);
-    map.once('style.load', () => {
+    const preparedStyle = injectLayersIntoStyle(rawStyle);
+    map.setStyle(preparedStyle, { diff: false });
+
+    const onStyleReady = () => {
       setupMapLayers();
       applyMapFilter();
       if (selected && grouped.has(selected)) {
-        map.getSource('selection').setData({ type: 'FeatureCollection', features: grouped.get(selected) });
+        const selSource = map.getSource('selection');
+        if (selSource) {
+          selSource.setData({ type: 'FeatureCollection', features: grouped.get(selected) });
+        }
       }
-    });
+    };
+
+    map.once('styledata', onStyleReady);
+    map.once('style.load', onStyleReady);
   } catch (err) {
     console.warn('Could not load basemap style:', err);
     status('No se pudo cargar el mapa base seleccionado.');
@@ -424,9 +454,10 @@ async function initializeMap() {
   }
 
   try {
+    const initialStyle = injectLayersIntoStyle(style);
     map = new maplibregl.Map({
       container: 'map',
-      style,
+      style: initialStyle,
       center: [-70.608, -33.435],
       zoom: 13,
       attributionControl: false

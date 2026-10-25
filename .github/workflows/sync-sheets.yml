@@ -1,0 +1,49 @@
+name: Sincronizar catálogo desde Google Sheets
+
+on:
+  workflow_dispatch:
+    inputs:
+      sheets_url:
+        description: 'URL de publicación CSV de Google Sheets (opcional si ya está configurada en Variables del repo)'
+        required: false
+        type: string
+  schedule:
+    - cron: '0 6 * * *' # Sincronización automática diaria a las 06:00 UTC
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar código del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Sincronizar catálogo y GeoJSON
+        env:
+          GOOGLE_SHEETS_CSV_URL: ${{ inputs.sheets_url || vars.GOOGLE_SHEETS_CSV_URL }}
+        run: |
+          if [ -n "$GOOGLE_SHEETS_CSV_URL" ]; then
+            node sync_sheets.js "$GOOGLE_SHEETS_CSV_URL"
+          else
+            echo "Aviso: No se configuró GOOGLE_SHEETS_CSV_URL. Ejecutando con catalogo.csv local."
+            node sync_sheets.js
+          fi
+
+      - name: Validar integridad del archivo
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest -v test_enrich
+
+      - name: Guardar y subir cambios a GitHub
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore(data): sincronización automática del catálogo desde Google Sheets"
+          file_pattern: "catalogo.csv calles.geojson validation.json"

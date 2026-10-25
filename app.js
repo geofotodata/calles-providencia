@@ -306,21 +306,88 @@ function setupMapLayers() {
   }
 }
 
-async function setMapTheme(theme) {
+const basemaps = {
+  positron: {
+    name: 'Claro',
+    type: 'url',
+    url: 'https://tiles.openfreemap.org/styles/positron',
+    theme: 'light'
+  },
+  dark: {
+    name: 'Oscuro',
+    type: 'url',
+    url: 'https://tiles.openfreemap.org/styles/dark',
+    theme: 'dark'
+  },
+  liberty: {
+    name: 'Detallado',
+    type: 'url',
+    url: 'https://tiles.openfreemap.org/styles/liberty',
+    theme: 'light'
+  },
+  satellite: {
+    name: 'Satélite',
+    type: 'json',
+    style: {
+      version: 8,
+      sources: {
+        'esri-satellite': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+          ],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+        }
+      },
+      layers: [
+        {
+          id: 'satellite-tiles',
+          type: 'raster',
+          source: 'esri-satellite'
+        }
+      ]
+    },
+    theme: 'dark'
+  }
+};
+
+let currentBasemap = 'positron';
+
+function setUITheme(theme) {
   currentTheme = theme;
   document.documentElement.dataset.theme = theme;
   localStorage.setItem('theme', theme);
-  $('theme-label').textContent = theme === 'dark' ? 'Oscuro' : 'Claro';
+  if ($('theme-label')) $('theme-label').textContent = theme === 'dark' ? 'Oscuro' : 'Claro';
+}
+
+async function changeBasemap(styleKey) {
+  const cfg = basemaps[styleKey];
+  if (!cfg) return;
+
+  currentBasemap = styleKey;
+  localStorage.setItem('basemap', styleKey);
+
+  if ($('basemap-label')) $('basemap-label').textContent = 'Mapa: ' + cfg.name;
+  for (const btn of document.querySelectorAll('.basemap-option')) {
+    btn.classList.toggle('active', btn.dataset.style === styleKey);
+  }
+
+  setUITheme(cfg.theme);
 
   if (!mapReady || !map) return;
-  const styleUrl = theme === 'dark'
-    ? 'https://tiles.openfreemap.org/styles/dark'
-    : 'https://tiles.openfreemap.org/styles/positron';
 
   try {
-    const response = await fetch(styleUrl, { signal: AbortSignal.timeout(8000) });
-    if (!response.ok) throw new Error('Theme basemap unavailable');
-    const styleJson = await response.json();
+    let styleJson;
+    if (cfg.type === 'url') {
+      const resp = await fetch(cfg.url, { signal: AbortSignal.timeout(9000) });
+      if (!resp.ok) throw new Error('Basemap style unavailable');
+      styleJson = await resp.json();
+    } else {
+      styleJson = cfg.style;
+    }
+
     map.setStyle(styleJson);
     map.once('style.load', () => {
       setupMapLayers();
@@ -330,7 +397,8 @@ async function setMapTheme(theme) {
       }
     });
   } catch (err) {
-    console.warn('Could not change map theme:', err);
+    console.warn('Could not load basemap style:', err);
+    status('No se pudo cargar el mapa base seleccionado.');
   }
 }
 
@@ -341,14 +409,16 @@ async function initializeMap() {
   }
 
   let style = blankStyle, basemapAvailable = true;
-  const styleUrl = currentTheme === 'dark'
-    ? 'https://tiles.openfreemap.org/styles/dark'
-    : 'https://tiles.openfreemap.org/styles/positron';
+  const cfg = basemaps[currentBasemap] || basemaps.positron;
 
   try {
-    const response = await fetch(styleUrl, { signal: AbortSignal.timeout(12000) });
-    if (!response.ok) throw new Error('Map style unavailable');
-    style = await response.json();
+    if (cfg.type === 'url') {
+      const response = await fetch(cfg.url, { signal: AbortSignal.timeout(12000) });
+      if (!response.ok) throw new Error('Map style unavailable');
+      style = await response.json();
+    } else {
+      style = cfg.style;
+    }
   } catch {
     basemapAvailable = false;
   }
@@ -402,12 +472,18 @@ async function initializeMap() {
 }
 
 async function start() {
-  // Inicializar tema guardado o según preferencia del sistema
+  const savedBasemap = localStorage.getItem('basemap');
   const savedTheme = localStorage.getItem('theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  currentTheme = savedTheme || (prefersDark ? 'dark' : 'light');
-  document.documentElement.dataset.theme = currentTheme;
-  $('theme-label').textContent = currentTheme === 'dark' ? 'Oscuro' : 'Claro';
+
+  currentBasemap = savedBasemap || (savedTheme === 'dark' || (!savedTheme && prefersDark) ? 'dark' : 'positron');
+  if (!basemaps[currentBasemap]) currentBasemap = 'positron';
+
+  setUITheme(basemaps[currentBasemap].theme);
+  if ($('basemap-label')) $('basemap-label').textContent = 'Mapa: ' + basemaps[currentBasemap].name;
+  for (const btn of document.querySelectorAll('.basemap-option')) {
+    btn.classList.toggle('active', btn.dataset.style === currentBasemap);
+  }
 
   try {
     const response = await fetch('./calles.geojson');
@@ -489,10 +565,52 @@ $('sidebar-toggle').addEventListener('click', () => {
   }
 });
 
-// Toggle de tema claro / oscuro
+// Dropdown de mapa base
+const basemapMenu = $('basemap-menu');
+const basemapBtn = $('basemap-btn');
+const basemapDropdown = $('basemap-dropdown');
+
+function toggleBasemapDropdown(open) {
+  if (!basemapDropdown || !basemapBtn) return;
+  const isOpen = open !== undefined ? open : basemapDropdown.hidden;
+  basemapDropdown.hidden = !isOpen;
+  basemapBtn.setAttribute('aria-expanded', String(isOpen));
+  if (basemapMenu) basemapMenu.classList.toggle('open', isOpen);
+}
+
+if (basemapBtn) {
+  basemapBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleBasemapDropdown();
+  });
+}
+
+for (const option of document.querySelectorAll('.basemap-option')) {
+  option.addEventListener('click', () => {
+    const styleKey = option.dataset.style;
+    changeBasemap(styleKey);
+    toggleBasemapDropdown(false);
+  });
+}
+
+document.addEventListener('click', (e) => {
+  if (basemapMenu && !basemapMenu.contains(e.target)) {
+    toggleBasemapDropdown(false);
+  }
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && basemapDropdown && !basemapDropdown.hidden) {
+    toggleBasemapDropdown(false);
+    if (basemapBtn) basemapBtn.focus();
+  }
+});
+
+// Toggle de tema claro / oscuro en header
 $('theme-toggle').addEventListener('click', () => {
   const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-  setMapTheme(nextTheme);
+  const nextBasemap = nextTheme === 'dark' ? 'dark' : 'positron';
+  changeBasemap(nextBasemap);
 });
 
 $('about-open').addEventListener('click', () => $('about').showModal());

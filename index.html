@@ -72,7 +72,46 @@
   <section class="map-section" aria-label="Mapa interactivo de calles">
     <div id="map"></div>
     <div id="map-status" class="map-status" role="status">Preparando el mapa…</div>
-    <button id="extent" class="extent" title="Ver todas las calles">⌖ Ver Providencia</button>
+    <div class="map-controls-top">
+      <button id="extent" class="extent" title="Ver todas las calles">⌖ Ver Providencia</button>
+      <div class="basemap-menu" id="basemap-menu">
+        <button id="basemap-btn" class="basemap-btn" title="Cambiar mapa base" aria-expanded="false" aria-haspopup="true">
+          <span aria-hidden="true">🗺️</span>
+          <span id="basemap-label">Mapa: Claro</span>
+          <span class="chevron" aria-hidden="true">▾</span>
+        </button>
+        <div class="basemap-dropdown" id="basemap-dropdown" hidden>
+          <button class="basemap-option active" data-style="positron" type="button">
+            <span class="option-icon" aria-hidden="true">☀️</span>
+            <span class="option-text">
+              <strong>Claro</strong>
+              <small>Positron minimalista</small>
+            </span>
+          </button>
+          <button class="basemap-option" data-style="dark" type="button">
+            <span class="option-icon" aria-hidden="true">🌙</span>
+            <span class="option-text">
+              <strong>Oscuro</strong>
+              <small>Dark Matter nocturno</small>
+            </span>
+          </button>
+          <button class="basemap-option" data-style="liberty" type="button">
+            <span class="option-icon" aria-hidden="true">🌳</span>
+            <span class="option-text">
+              <strong>Detallado</strong>
+              <small>Liberty con vías y áreas verdes</small>
+            </span>
+          </button>
+          <button class="basemap-option" data-style="satellite" type="button">
+            <span class="option-icon" aria-hidden="true">🛰️</span>
+            <span class="option-text">
+              <strong>Satélite</strong>
+              <small>Fotografía aérea de alta resolución</small>
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
     <div class="map-bottom-left">
       <div class="map-caption">
         <b>Explora Providencia</b>

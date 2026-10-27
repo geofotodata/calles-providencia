@@ -747,7 +747,28 @@ dialog {
   box-shadow: var(--shadow-lg);
 }
 dialog::backdrop { background: rgba(10, 25, 23, 0.6); }
-#about-readme { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.7; }
+#about { width: min(760px, calc(100vw - 32px)); max-width: 760px; max-height: 85dvh; padding: 0; overflow-y: auto; box-sizing: border-box; }
+.about-header { position: sticky; top: 0; z-index: 1; padding: 24px 32px 16px; background: var(--bg-surface); border-bottom: 1px solid var(--border); }
+.about-header .close { top: 16px; right: 16px; }
+.about-header h2 { padding-right: 28px; margin-bottom: 12px; }
+.about-header p:last-child { margin-bottom: 0; }
+#about a { color: var(--green); text-underline-offset: 3px; }
+#about-readme { padding: 24px 32px 32px; overflow-wrap: anywhere; font-size: 15px; line-height: 1.75; }
+#about-readme p { font-size: inherit; line-height: inherit; margin: 0 0 16px; }
+#about-readme h2 { font-size: 27px; line-height: 1.25; margin: 0 0 20px; }
+#about-readme h3 { font-size: 21px; line-height: 1.35; margin: 28px 0 14px; }
+#about-readme h4 { font-size: 17px; line-height: 1.4; margin: 24px 0 12px; }
+#about-readme ul, #about-readme ol { padding-left: 24px; margin: 12px 0 20px; }
+#about-readme li { margin: 8px 0; }
+#about-readme blockquote { margin: 20px 0; padding: 12px 18px; border-left: 3px solid var(--green); background: var(--bg-subtle); }
+#about-readme hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+#about-readme code { font-size: .88em; background: var(--bg-subtle); padding: 2px 5px; border-radius: 4px; }
+#about-readme pre { overflow-x: auto; padding: 16px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 8px; line-height: 1.5; }
+#about-readme pre code { padding: 0; white-space: pre; }
+@media (max-width: 580px) {
+  .about-header { padding: 20px; }
+  #about-readme { padding: 20px; font-size: 14px; }
+}
 dialog h2 { font-family: Georgia, serif; font-size: 28px; font-weight: 400; margin-top: 0; }
 dialog p { font-size: 13px; line-height: 1.7; }
 .empty { padding: 20px 12px; font-size: 13px; color: var(--muted); }

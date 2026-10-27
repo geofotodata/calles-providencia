@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="./maplibre-gl.css">
   <link rel="stylesheet" href="./style.css">
   <script defer src="./maplibre-gl.js"></script>
+  <script defer src="./readme.js"></script>
   <script defer src="./app.js"></script>
 </head>
 <body>
@@ -154,11 +155,13 @@
     </section>
   </section>
 </main>
-<dialog id="about">
+<dialog id="about" aria-labelledby="about-title">
+  <div class="about-header">
   <button id="about-close" class="close" aria-label="Cerrar información">×</button>
   <p class="eyebrow">EL PROYECTO</p>
   <h2 id="about-title">Sobre el proyecto</h2>
   <p><a href="https://github.com/geofotodata/calles-providencia" target="_blank" rel="noopener noreferrer">Ver proyecto en GitHub</a> · <a href="./README.md">Abrir README</a></p>
+  </div>
   <div id="about-readme" aria-live="polite">Cargando documentación…</div>
 </dialog>
 <noscript>Activa JavaScript para explorar el mapa. Puedes descargar el catálogo y el GeoJSON desde los enlaces de esta página.</noscript>

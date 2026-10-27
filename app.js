@@ -660,8 +660,7 @@ $('about-open').addEventListener('click', async () => {
     const response = await fetch('./README.md', { cache: 'no-cache' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const markdown = await response.text();
-    // Render as text: the README is the single source and cannot inject HTML.
-    content.textContent = markdown;
+    renderReadme(markdown, content);
   } catch {
     content.textContent = 'No se pudo cargar el README. Puedes abrirlo con el enlace de arriba o consultarlo en GitHub. Si abriste el mapa como archivo local, utiliza el servidor indicado en el README.';
   }

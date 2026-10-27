@@ -8,11 +8,11 @@
   "crs": "OGC:CRS84 / WGS84 longitude, latitude",
   "join": "NOMBRE_ART exact",
   "states_by_name": {
-    "REFERENTE_PROPUESTO": 144,
-    "SIGNIFICADO_LITERAL": 150,
+    "REFERENTE_PROPUESTO": 152,
+    "SIGNIFICADO_LITERAL": 152,
     "RESEÑA_LOCAL": 47,
     "RESEÑA_POR_CORROBORAR": 20,
-    "PENDIENTE": 94,
+    "PENDIENTE": 84,
     "IDENTIDAD_POR_VERIFICAR": 10
   },
   "source_sha256": "1f461fa7fa9b405a37eb7432031e31a46b24e9f5caf0566345c47cc39e89474b"

@@ -531,8 +531,9 @@ async function start() {
     catalogue = [...grouped.values()].map((f) => f[0].properties).sort((a, b) => a.NOMBRE_ART.localeCompare(b.NOMBRE_ART, 'es'));
     $('total').textContent = number(catalogue.length);
     $('segments').textContent = number(data.features.length);
+    $('pending-count').textContent = number(catalogue.filter((p) => p.ESTADO === 'PENDIENTE').length);
 
-    for (const type of [...new Set(data.features.map((f) => f.properties.CLASE))].sort()) {
+    for (const type of [...new Set(catalogue.flatMap((p) => p.TIPOS_VIA.split(' | ')))].sort()) {
       const option = document.createElement('option');
       option.value = type;
       option.textContent = type;
@@ -560,6 +561,14 @@ $('reset').addEventListener('click', () => {
   $('type').value = '';
   $('state').value = '';
   filterCatalogue();
+});
+
+$('research-pending').addEventListener('click', () => {
+  $('search').value = '';
+  $('type').value = '';
+  $('state').value = 'PENDIENTE';
+  filterCatalogue();
+  $('search').focus();
 });
 
 $('extent').addEventListener('click', () => {
@@ -644,7 +653,19 @@ $('theme-toggle').addEventListener('click', () => {
   changeBasemap(nextBasemap);
 });
 
-$('about-open').addEventListener('click', () => $('about').showModal());
+$('about-open').addEventListener('click', async () => {
+  $('about').showModal();
+  const content = $('about-readme');
+  try {
+    const response = await fetch('./README.md', { cache: 'no-cache' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const markdown = await response.text();
+    // Render as text: the README is the single source and cannot inject HTML.
+    content.textContent = markdown;
+  } catch {
+    content.textContent = 'No se pudo cargar el README. Puedes abrirlo con el enlace de arriba o consultarlo en GitHub. Si abriste el mapa como archivo local, utiliza el servidor indicado en el README.';
+  }
+});
 $('about-close').addEventListener('click', () => $('about').close());
 
 $('copy-link').addEventListener('click', async () => {

@@ -9,6 +9,10 @@ const https = require('https');
 const http = require('http');
 
 const ROOT = __dirname;
+const REQUIRED_COLUMNS = [
+  'NOMBRE_ART', 'TIPOS_VIA', 'N_TRAMOS', 'REFERENTE', 'DESCRIPCION',
+  'ESTADO', 'TEMA', 'FUENTE', 'URL_FUENTE', 'NOTAS', 'TEXTO_POPUP', 'FECHA_REV'
+];
 
 function parseCSV(text) {
   const lines = [];
@@ -70,6 +74,52 @@ function fetchURL(url) {
   });
 }
 
+function validateCatalog(rows, geo) {
+  if (!geo || geo.type !== 'FeatureCollection' || !Array.isArray(geo.features) || !geo.features.length) {
+    throw new Error('calles.geojson debe ser un FeatureCollection no vacío.');
+  }
+
+  const catalog = new Map();
+  for (const [index, row] of rows.entries()) {
+    const missing = REQUIRED_COLUMNS.filter((column) => !(column in row));
+    if (missing.length) {
+      throw new Error(`Fila ${index + 2}: faltan columnas requeridas: ${missing.join(', ')}.`);
+    }
+    const name = row.NOMBRE_ART.trim();
+    if (!name || catalog.has(name)) {
+      throw new Error(`Fila ${index + 2}: NOMBRE_ART vacío o duplicado: ${row.NOMBRE_ART || '(vacío)'}.`);
+    }
+    const segmentCount = Number(row.N_TRAMOS);
+    if (!Number.isInteger(segmentCount) || segmentCount < 1) {
+      throw new Error(`Fila ${index + 2}: N_TRAMOS debe ser un entero positivo.`);
+    }
+    catalog.set(name, { ...row, NOMBRE_ART: name, N_TRAMOS: segmentCount });
+  }
+
+  const featureCounts = new Map();
+  for (const feature of geo.features) {
+    const name = feature.properties?.NOMBRE_ART;
+    if (!name) throw new Error('Se encontró un tramo sin NOMBRE_ART.');
+    featureCounts.set(name, (featureCounts.get(name) || 0) + 1);
+  }
+
+  const missingInCatalog = [...featureCounts.keys()].filter((name) => !catalog.has(name));
+  const missingInGeoJSON = [...catalog.keys()].filter((name) => !featureCounts.has(name));
+  if (missingInCatalog.length || missingInGeoJSON.length) {
+    throw new Error(
+      `Las claves no coinciden (sin catálogo: ${missingInCatalog.join(', ') || 'ninguna'}; ` +
+      `sin geometría: ${missingInGeoJSON.join(', ') || 'ninguna'}).`
+    );
+  }
+
+  for (const [name, count] of featureCounts) {
+    if (catalog.get(name).N_TRAMOS !== count) {
+      throw new Error(`${name}: N_TRAMOS=${catalog.get(name).N_TRAMOS}, pero hay ${count} tramos en el GeoJSON.`);
+    }
+  }
+  return { catalog, featureCounts };
+}
+
 async function run() {
   const source = process.argv[2] || process.env.GOOGLE_SHEETS_CSV_URL || path.join(ROOT, 'catalogo.csv');
 
@@ -77,8 +127,6 @@ async function run() {
   if (source.startsWith('http://') || source.startsWith('https://')) {
     console.log(`📥 Descargando catálogo desde Google Sheets: ${source}`);
     rawCSV = await fetchURL(source);
-    fs.writeFileSync(path.join(ROOT, 'catalogo.csv'), '\ufeff' + rawCSV, 'utf8');
-    console.log('✓ catalogo.csv actualizado exitosamente.');
   } else {
     const filePath = path.isAbsolute(source) ? source : path.join(ROOT, source);
     console.log(`📖 Leyendo archivo local: ${filePath}`);
@@ -89,47 +137,31 @@ async function run() {
   if (!rows.length) {
     throw new Error('El archivo CSV está vacío o no contiene filas de datos.');
   }
-  console.log(`✓ Procesadas ${rows.length} filas del catálogo.`);
-
-  const catalog = new Map();
-  const stateCounts = {};
-  for (const r of rows) {
-    const name = (r.NOMBRE_ART || '').trim();
-    if (name) {
-      catalog.set(name, r);
-      const st = r.ESTADO || 'PENDIENTE';
-      stateCounts[st] = (stateCounts[st] || 0) + 1;
-    }
-  }
-
-  // Actualizar calles.geojson
   const geoPath = path.join(ROOT, 'calles.geojson');
   const geo = JSON.parse(fs.readFileSync(geoPath, 'utf8'));
+  const { catalog, featureCounts } = validateCatalog(rows, geo);
+  const stateCounts = {};
+  for (const row of catalog.values()) {
+    const state = row.ESTADO || 'PENDIENTE';
+    stateCounts[state] = (stateCounts[state] || 0) + 1;
+  }
+  console.log(`✓ Validadas ${catalog.size} calles y ${geo.features.length} tramos.`);
 
-  const fields = [
-    'REFERENTE',
-    'DESCRIPCION',
-    'ESTADO',
-    'TEMA',
-    'FUENTE',
-    'URL_FUENTE',
-    'NOTAS',
-    'TEXTO_POPUP',
-    'FECHA_REV'
-  ];
+  if (source.startsWith('http://') || source.startsWith('https://')) {
+    const catalogPath = path.join(ROOT, 'catalogo.csv');
+    const temporaryCatalog = catalogPath + '.tmp';
+    fs.writeFileSync(temporaryCatalog, '\ufeff' + rawCSV, 'utf8');
+    fs.renameSync(temporaryCatalog, catalogPath);
+    console.log('✓ catalogo.csv actualizado exitosamente.');
+  }
 
   let matched = 0;
-  for (const feature of geo.features || []) {
-    const name = feature.properties?.NOMBRE_ART;
-    if (catalog.has(name)) {
-      const row = catalog.get(name);
-      for (const f of fields) {
-        if (row[f] !== undefined) {
-          feature.properties[f] = row[f];
-        }
-      }
-      matched++;
+  for (const feature of geo.features) {
+    const row = catalog.get(feature.properties.NOMBRE_ART);
+    for (const [field, value] of Object.entries(row)) {
+      if (field !== 'NOMBRE_ART') feature.properties[field] = value;
     }
+    matched++;
   }
 
   const tmpGeo = geoPath + '.tmp';
@@ -142,6 +174,14 @@ async function run() {
   if (fs.existsSync(valPath)) {
     try {
       const val = JSON.parse(fs.readFileSync(valPath, 'utf8'));
+      val.features_in = geo.features.length;
+      val.features_out = geo.features.length;
+      val.unique_names = catalog.size;
+      val.unmatched = [];
+      val.rejected = [];
+      val.geometry_unchanged = true;
+      val.crs = 'OGC:CRS84 / WGS84 longitude, latitude';
+      val.join = 'NOMBRE_ART exact';
       val.states_by_name = stateCounts;
       fs.writeFileSync(valPath, JSON.stringify(val, null, 2), 'utf8');
       console.log('✓ validation.json actualizado.');
@@ -153,7 +193,11 @@ async function run() {
   console.log('\n🎉 ¡Sincronización completada con éxito!');
 }
 
-run().catch((err) => {
-  console.error('❌ Error en la sincronización:', err.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  run().catch((err) => {
+    console.error('❌ Error en la sincronización:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { parseCSV, validateCatalog };

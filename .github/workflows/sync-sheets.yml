@@ -40,7 +40,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m unittest -v test_enrich
+      - run: |
+          node --test test_sync_sheets.js
+          python -m unittest -v test_enrich
 
       - name: Guardar y subir cambios a GitHub
         uses: stefanzweifel/git-auto-commit-action@v5

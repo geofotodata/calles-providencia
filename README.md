@@ -2,6 +2,8 @@
 
 Atlas interactivo del significado, origen y contexto histórico de los **465 nombres de calles** de la comuna de Providencia, Santiago de Chile.
 
+**Proyecto en GitHub:** [geofotodata/calles-providencia](https://github.com/geofotodata/calles-providencia)
+
 > **Explora la aplicación en vivo:** [https://geofotodata.github.io/calles-providencia/](https://geofotodata.github.io/calles-providencia/)
 
 ---
@@ -71,6 +73,8 @@ La investigación de nombres se actualiza continuamente mediante una **hoja de c
    * Haz clic en **Run workflow**, introduce la URL pública CSV de la hoja y confirma.
    * El flujo descargará los cambios, actualizará `catalogo.csv`, regenerará las propiedades en `calles.geojson`, correrá los tests unitarios y publicará los cambios en producción en ~1 minuto.
    *(También se ejecuta automáticamente a diario si configuras la variable `GOOGLE_SHEETS_CSV_URL` en los Settings del repositorio).*
+
+   Antes de escribir cambios, la sincronización exige que cada `NOMBRE_ART` sea único y que el catálogo y el GeoJSON tengan exactamente las mismas calles. También comprueba que `N_TRAMOS` coincida con la cantidad de geometrías. Si alguna regla falla, el flujo termina sin publicar datos parciales.
 
 2. **Desde la terminal local:**
    ```sh

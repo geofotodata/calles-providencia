@@ -7,10 +7,9 @@
   <meta name="description" content="Explora el significado de 465 nombres de calles de Providencia. Mapa y catálogo con fuentes y estado de investigación.">
   <title>Calles con historia · Providencia</title>
   <link rel="stylesheet" href="./maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./style.css?v=about-4">
   <script defer src="./maplibre-gl.js"></script>
-  <script defer src="./readme.js"></script>
-  <script defer src="./app.js"></script>
+  <script defer src="./app.js?v=about-4"></script>
 </head>
 <body>
 <header>
@@ -158,11 +157,33 @@
 <dialog id="about" aria-labelledby="about-title">
   <div class="about-header">
   <button id="about-close" class="close" aria-label="Cerrar información">×</button>
-  <p class="eyebrow">EL PROYECTO</p>
-  <h2 id="about-title">Sobre el proyecto</h2>
-  <p><a href="https://github.com/geofotodata/calles-providencia" target="_blank" rel="noopener noreferrer">Ver proyecto en GitHub</a> · <a href="./README.md">Abrir README</a></p>
+  <p class="eyebrow">CARTOGRAFÍA · MEMORIA · CIUDAD</p>
+  <h2 id="about-title">Calles con historia<span>Providencia, nombre a nombre.</span></h2>
   </div>
-  <div id="about-readme" aria-live="polite">Cargando documentación…</div>
+  <div class="about-body">
+    <p class="about-lead">Los nombres que vemos cada día también cuentan la historia de una ciudad.</p>
+    <p>Este atlas interactivo invita a descubrir Providencia a través de sus calles: las personas que recuerda, los lugares que evoca y las huellas de su transformación, desde antiguas chacras y conventos hasta los barrios que conocemos hoy.</p>
+    <div class="about-facts" aria-label="Alcance del atlas">
+      <div><strong>465</strong><span>nombres para explorar</span></div>
+      <div><strong>2.855</strong><span>tramos en el mapa</span></div>
+      <div><strong>Una comuna</strong><span>muchas historias</span></div>
+    </div>
+    <section class="about-story">
+      <h3>Una nueva forma de leer la ciudad</h3>
+      <p>Busca una calle, selecciónala en el mapa y conoce su significado, su contexto y las fuentes disponibles. Personajes, naturaleza y geografía se encuentran en un recorrido por la memoria cotidiana de Providencia.</p>
+    </section>
+    <section class="about-research">
+      <h3>Una investigación en construcción</h3>
+      <p>Cada reseña indica cuánto sabemos: algunas cuentan con antecedentes locales; otras proponen un referente o explican el significado del nombre. Las atribuciones pendientes y los nombres sin identificar también tienen su lugar: son una invitación a seguir investigando.</p>
+    </section>
+    <div class="about-links"><a href="https://github.com/geofotodata/calles-providencia" target="_blank" rel="noopener noreferrer">Explorar el proyecto en GitHub ↗</a><a href="./README.md" target="_blank" rel="noopener noreferrer">Leer la documentación ↗</a></div>
+    <footer class="about-credits">
+      <p class="eyebrow">CRÉDITOS</p>
+      <p>Creado por <strong>Luis Bravo</strong> <span>(gofoto)</span></p>
+      <a href="https://github.com/geofotodata" target="_blank" rel="noopener noreferrer">GitHub · geofotodata ↗</a>
+      <p class="about-attribution">Cartografía con MapLibre GL JS, OpenFreeMap, OpenStreetMap y Esri. Las fuentes de investigación se indican en cada ficha.</p>
+    </footer>
+  </div>
 </dialog>
 <noscript>Activa JavaScript para explorar el mapa. Puedes descargar el catálogo y el GeoJSON desde los enlaces de esta página.</noscript>
 </body>

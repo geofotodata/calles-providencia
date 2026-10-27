@@ -653,18 +653,7 @@ $('theme-toggle').addEventListener('click', () => {
   changeBasemap(nextBasemap);
 });
 
-$('about-open').addEventListener('click', async () => {
-  $('about').showModal();
-  const content = $('about-readme');
-  try {
-    const response = await fetch('./README.md', { cache: 'no-cache' });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const markdown = await response.text();
-    renderReadme(markdown, content);
-  } catch {
-    content.textContent = 'No se pudo cargar el README. Puedes abrirlo con el enlace de arriba o consultarlo en GitHub. Si abriste el mapa como archivo local, utiliza el servidor indicado en el README.';
-  }
-});
+$('about-open').addEventListener('click', () => $('about').showModal());
 $('about-close').addEventListener('click', () => $('about').close());
 
 $('copy-link').addEventListener('click', async () => {

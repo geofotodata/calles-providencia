@@ -75,5 +75,24 @@ function renderReadme(markdown, target) {
     } else paragraph.append(document.createTextNode(' '));
     inline(trimmed, paragraph);
   }
-  target.replaceChildren(fragment);
+  // Present the complete README as an introduction and expandable sections.
+  const layout = document.createDocumentFragment();
+  let section = document.createElement('div');
+  section.className = 'about-intro';
+  layout.append(section);
+  for (const node of [...fragment.childNodes]) {
+    if (node.nodeName === 'HR') continue;
+    if (node.nodeName === 'H3') {
+      const details = document.createElement('details');
+      details.className = 'about-section';
+      const summary = document.createElement('summary');
+      summary.textContent = node.textContent;
+      details.append(summary);
+      section = document.createElement('div');
+      section.className = 'about-section-body';
+      details.append(section);
+      layout.append(details);
+    } else section.append(node);
+  }
+  target.replaceChildren(layout);
 }

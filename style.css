@@ -765,12 +765,55 @@ dialog::backdrop { background: rgba(10, 25, 23, 0.6); }
 #about-readme code { font-size: .88em; background: var(--bg-subtle); padding: 2px 5px; border-radius: 4px; }
 #about-readme pre { overflow-x: auto; padding: 16px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 8px; line-height: 1.5; }
 #about-readme pre code { padding: 0; white-space: pre; }
+.about-subtitle { color: var(--muted); margin: 0 0 18px; }
+.about-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.about-links a { display: inline-flex; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; text-decoration: none; background: var(--bg-subtle); }
+.about-links a:hover { background: var(--bg-hover); border-color: var(--green); }
+.about-intro { margin-bottom: 24px; }
+#about-readme .about-intro h2 { font-family: inherit; font-size: 18px; font-weight: 600; }
+.about-section { border: 1px solid var(--border); border-radius: 10px; margin: 10px 0; overflow: hidden; background: var(--bg-subtle); }
+.about-section summary { cursor: pointer; padding: 16px 18px; font-size: 15px; font-weight: 600; line-height: 1.5; }
+.about-section summary:hover { background: var(--bg-hover); }
+.about-section summary:focus-visible { outline: 2px solid var(--green); outline-offset: -3px; }
+.about-section[open] summary { border-bottom: 1px solid var(--border); }
+.about-section-body { padding: 20px; background: var(--bg-surface); }
+#about-readme .about-section-body > :first-child { margin-top: 0; }
+#about-readme .about-section-body > :last-child { margin-bottom: 0; }
 @media (max-width: 580px) {
   .about-header { padding: 20px; }
   #about-readme { padding: 20px; font-size: 14px; }
 }
 dialog h2 { font-family: Georgia, serif; font-size: 28px; font-weight: 400; margin-top: 0; }
 dialog p { font-size: 13px; line-height: 1.7; }
+#about { max-width: 780px; border-radius: 20px; scrollbar-width: thin; scrollbar-color: var(--border) var(--bg-surface); }
+#about .about-header { position: relative; padding: 40px 44px 28px; background: var(--bg-subtle); }
+#about .about-header .eyebrow { font-size: 10px; letter-spacing: .18em; margin: 0 0 18px; }
+#about-title { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px, 5vw, 42px); line-height: 1.15; letter-spacing: -.035em; margin: 0; }
+#about-title span { display: block; font: 400 15px/1.6 Inter, ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; color: var(--muted); margin-top: 12px; }
+#about .close { position: sticky; float: right; top: 16px; margin-right: -20px; width: 36px; height: 36px; border-radius: 50%; background: var(--bg-surface); z-index: 2; }
+.about-body { padding: 30px 44px 36px; }
+#about .about-body p { font-size: 15px; line-height: 1.8; margin: 0 0 18px; }
+#about p.about-lead { font-size: 21px; line-height: 1.5; font-weight: 500; letter-spacing: -.02em; }
+.about-facts { display: grid; grid-template-columns: repeat(3, 1fr); border-block: 1px solid var(--border); padding: 22px 0; margin: 28px 0; gap: 16px; }
+.about-facts strong { display: block; font-size: 23px; font-weight: 600; letter-spacing: -.03em; }
+.about-facts span { display: block; font-size: 11px; color: var(--muted); margin-top: 5px; }
+.about-body h3 { font-size: 16px; font-weight: 650; margin: 0 0 10px; letter-spacing: -.01em; }
+.about-research { background: var(--bg-subtle); border-left: 3px solid var(--green-light); padding: 20px 22px; border-radius: 0 10px 10px 0; margin: 24px 0; }
+#about .about-research p { margin: 0; font-size: 14px; }
+.about-credits { margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--border); }
+#about .about-credits .eyebrow { font-size: 10px; letter-spacing: .16em; margin-bottom: 10px; }
+#about .about-credits p { margin-bottom: 4px; }
+.about-credits > a { font-size: 13px; }
+.about-credits span { color: var(--muted); }
+#about .about-attribution { font-size: 11px; line-height: 1.65; color: var(--muted); margin-top: 18px; }
+@media (max-width: 580px) {
+  #about .about-header { padding: 28px 24px 22px; }
+  .about-body { padding: 24px; }
+  #about .close { margin-right: -8px; }
+  .about-facts { gap: 10px; }
+  .about-facts strong { font-size: 19px; }
+  #about p.about-lead { font-size: 19px; }
+}
 .empty { padding: 20px 12px; font-size: 13px; color: var(--muted); }
 
 .map-status {

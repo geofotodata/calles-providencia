@@ -95,6 +95,12 @@ function selectStreet(name, zoom = true) {
   $('detail-ref').textContent = p.REFERENTE;
   $('detail-description').textContent = p.DESCRIPCION;
   $('detail-notes').textContent = p.NOTAS;
+
+  const pendingNote = $('detail-pending');
+  pendingNote.hidden = p.ESTADO !== 'PENDIENTE';
+  pendingNote.textContent = p.ESTADO === 'PENDIENTE'
+    ? 'Sin atribución verificable en las fuentes abiertas consultadas (octubre 2026). No significa que la calle no tenga historia: falta confirmar su origen en documentos municipales de Providencia.'
+    : '';
   $('detail-count').textContent = number(features.length) + ' registros con este nombre';
   $('copy-link').textContent = 'Copiar enlace';
 

@@ -7,9 +7,9 @@
   <meta name="description" content="Explora el significado de 465 nombres de calles de Providencia. Mapa y catálogo con fuentes y estado de investigación.">
   <title>Calles con historia · Providencia</title>
   <link rel="stylesheet" href="./maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=about-4">
+  <link rel="stylesheet" href="./style.css?v=ux-5">
   <script defer src="./maplibre-gl.js"></script>
-  <script defer src="./app.js?v=about-4"></script>
+  <script defer src="./app.js?v=ux-5"></script>
 </head>
 <body>
 <header>
@@ -17,9 +17,9 @@
     <span class="mark" aria-hidden="true">╋</span>
     <span>Calles con historia<small>PROVIDENCIA · ATLAS DE NOMBRES</small></span>
   </a>
-  <nav>
-    <a href="./calles.geojson" download>Descargar GeoJSON <span aria-hidden="true">↗</span></a>
-    <button id="theme-toggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
+  <nav aria-label="Acciones del proyecto">
+    <a href="./calles.geojson" download title="Descargar todos los tramos, sin aplicar filtros">Descargar GeoJSON completo <span aria-hidden="true">↗</span></a>
+    <button id="theme-toggle" title="Cambiar apariencia de la interfaz" aria-label="Tema oscuro" aria-pressed="false">
       <span aria-hidden="true">🌓</span>
       <span id="theme-label">Tema</span>
     </button>
@@ -68,17 +68,21 @@
         <button id="reset">Limpiar</button>
       </div>
     </section>
-    <div id="results" class="results" aria-label="Resultados"></div>
+    <div id="results" class="results" aria-label="Resultados" aria-busy="true"><div class="skeleton" aria-hidden="true"></div></div>
     <footer>Catálogo preliminar · Fuentes y dudas visibles.</footer>
   </aside>
-  <button id="sidebar-toggle" class="sidebar-toggle" title="Ocultar/mostrar catálogo" aria-label="Alternar catálogo" aria-expanded="true">◀</button>
+  <button id="sidebar-toggle" class="sidebar-toggle" title="Ocultar/mostrar catálogo" aria-label="Alternar catálogo" aria-controls="sidebar" aria-expanded="true">◀</button>
   <section class="map-section" aria-label="Mapa interactivo de calles">
+    <div class="map-viewport">
     <div id="map"></div>
-    <div id="map-status" class="map-status" role="status">Preparando el mapa…</div>
-    <div class="map-controls-top">
+    <div id="map-notice" class="map-status">
+      <p id="map-status" role="status">Preparando el mapa…</p>
+      <button id="retry-load" class="nav-btn" hidden>Volver a intentar</button>
+    </div>
+    <div id="map-controls" class="map-controls-top">
       <button id="extent" class="extent" title="Ver todas las calles">⌖ Ver Providencia</button>
       <div class="basemap-menu" id="basemap-menu">
-        <button id="basemap-btn" class="basemap-btn" title="Cambiar mapa base" aria-expanded="false" aria-haspopup="true">
+        <button id="basemap-btn" class="basemap-btn" title="Cambiar mapa base" aria-expanded="false" aria-controls="basemap-dropdown" disabled>
           <span aria-hidden="true">🗺️</span>
           <span id="basemap-label">Mapa: Claro</span>
           <span class="chevron" aria-hidden="true">▾</span>
@@ -115,7 +119,7 @@
         </div>
       </div>
     </div>
-    <div class="map-bottom-left">
+    <div id="map-overlays" class="map-bottom-left">
       <div class="map-caption">
         <b>Explora Providencia</b>
         <span>Selecciona una línea o busca en el catálogo.</span>
@@ -127,30 +131,37 @@
           <span class="legend-item"><i class="dot ref-propuesto"></i>Referente propuesto</span>
           <span class="legend-item"><i class="dot sig-literal"></i>Significado literal</span>
           <span class="legend-item"><i class="dot por-verificar"></i>Por corroborar</span>
+          <span class="legend-item"><i class="dot por-verificar"></i>Identidad por verificar</span>
           <span class="legend-item" title="Sin atribución verificable en las fuentes consultadas. No significa que la calle no tenga historia."><i class="dot pendiente"></i>Sin identificar</span>
           <span class="legend-item"><i class="line selected"></i>Seleccionada</span>
         </div>
       </div>
     </div>
-    <section id="detail" class="detail" aria-label="Significado de la calle" hidden>
+    </div>
+    <section id="detail" class="detail" aria-labelledby="detail-name" hidden>
       <button id="close-detail" class="close" aria-label="Cerrar ficha">×</button>
+      <p class="eyebrow" id="detail-type"></p>
+      <h2 id="detail-name" tabindex="-1"></h2>
       <div class="detail-nav">
         <button id="prev-street" class="nav-btn" title="Calle anterior en la lista">← Anterior</button>
         <button id="focus-street" class="nav-btn focus-btn" title="Centrar y acercar en el mapa">⌖ Enfocar</button>
         <button id="next-street" class="nav-btn" title="Siguiente calle en la lista">Siguiente →</button>
       </div>
-      <p class="eyebrow" id="detail-type"></p>
-      <h2 id="detail-name"></h2>
       <span id="detail-state" class="badge"></span>
       <p id="detail-ref" class="referent"></p>
       <p id="detail-description"></p>
-      <p id="detail-notes" class="notes"></p>
-      <p id="detail-pending" class="notes" hidden></p>
-      <a id="detail-source" target="_blank" rel="noopener noreferrer">Consultar fuente ↗</a>
-      <p id="detail-no-source" class="notes">Sin fuente documental de denominación.</p>
-      <div class="detail-bottom">
-        <span id="detail-count"></span>
-        <button id="copy-link">Copiar enlace</button>
+      <button id="detail-expand" class="nav-btn" aria-expanded="false" aria-controls="detail-body">Ver fuentes y notas</button>
+      <div id="detail-body">
+        <p id="detail-notes" class="notes"></p>
+        <p id="detail-pending" class="notes" hidden></p>
+        <p id="detail-certainty" class="notes" hidden></p>
+        <p id="detail-date" class="notes"></p>
+        <a id="detail-source" target="_blank" rel="noopener noreferrer">Consultar fuente ↗</a>
+        <p id="detail-no-source" class="notes">Sin fuente documental de denominación.</p>
+        <div class="detail-bottom">
+          <span id="detail-count"></span>
+          <button id="copy-link">Copiar enlace</button>
+        </div>
       </div>
     </section>
   </section>
@@ -165,8 +176,8 @@
     <p class="about-lead">Los nombres que vemos cada día también cuentan la historia de una ciudad.</p>
     <p>Este atlas interactivo invita a descubrir Providencia a través de sus calles: las personas que recuerda, los lugares que evoca y las huellas de su transformación, desde antiguas chacras y conventos hasta los barrios que conocemos hoy.</p>
     <div class="about-facts" aria-label="Alcance del atlas">
-      <div><strong>465</strong><span>nombres para explorar</span></div>
-      <div><strong>2.855</strong><span>tramos en el mapa</span></div>
+      <div><strong id="about-total">—</strong><span>nombres para explorar</span></div>
+      <div><strong id="about-segments">—</strong><span>tramos en el mapa</span></div>
       <div><strong>Una comuna</strong><span>muchas historias</span></div>
     </div>
     <section class="about-story">

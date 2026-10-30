@@ -9,21 +9,27 @@ const labels = {
   IDENTIDAD_POR_VERIFICAR: 'Identidad por verificar'
 };
 
-const stateColors = {
-  RESEÑA_LOCAL: '#1f7a5b',
-  REFERENTE_PROPUESTO: '#2563eb',
-  SIGNIFICADO_LITERAL: '#7c3aed',
-  RESEÑA_POR_CORROBORAR: '#d97706',
-  IDENTIDAD_POR_VERIFICAR: '#d97706',
-  PENDIENTE: '#64748b'
+// CSS tokens are shared by the map, result markers and legend.
+const stateTokens = {
+  RESEÑA_LOCAL: '--state-resena',
+  REFERENTE_PROPUESTO: '--state-referente',
+  SIGNIFICADO_LITERAL: '--state-literal',
+  RESEÑA_POR_CORROBORAR: '--state-corroborar',
+  IDENTIDAD_POR_VERIFICAR: '--state-corroborar',
+  PENDIENTE: '--state-pendiente'
 };
+const LOAD_TIMEOUT_MS = 12000;
 
 const normalize = (value) => (value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
 const number = (value) => new Intl.NumberFormat('es-CL').format(value);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const compactLayout = window.matchMedia('(max-width: 1000px)');
 
 let map, data, catalogue = [], grouped = new Map(), selected = '', mapReady = false, visibleNames = [];
 let currentTheme = 'light';
+let basemapRequest = 0, basemapController = null, detailOrigin = null;
+let styleChanging = false, lastGoodStyle = null, confirmedBasemap = null;
+let detailExpanded = false, catalogueReady = false;
 
 const empty = { type: 'FeatureCollection', features: [] };
 const blankStyle = {
@@ -49,19 +55,85 @@ function bounds(features) {
   return [[b[0], b[1]], [b[2], b[3]]];
 }
 
+function mapPadding() {
+  const area = $('map').getBoundingClientRect();
+  const padding = { top: 24, bottom: 36, left: 24, right: 24 };
+  const controls = $('map-controls').getBoundingClientRect();
+  const legend = $('map-overlays').getBoundingClientRect();
+  padding.top = Math.max(padding.top, controls.bottom - area.top + 12);
+  padding.bottom = Math.max(padding.bottom, area.bottom - legend.top + 12);
+  if (!$('detail').hidden && !compactLayout.matches) {
+    const panel = $('detail').getBoundingClientRect();
+    if (panel.left < area.right && panel.bottom > area.top) {
+      padding.right = Math.max(padding.right, area.right - panel.left + 16);
+    }
+  }
+  // Preserve a usable camera area even in a very small browser window.
+  for (const [first, second, size] of [['left', 'right', area.width], ['top', 'bottom', area.height]]) {
+    const total = padding[first] + padding[second];
+    const scale = Math.min(1, Math.max(0, size - 80) / total);
+    padding[first] *= scale;
+    padding[second] *= scale;
+  }
+  return padding;
+}
+
 function fit(features) {
   if (!mapReady || !features || !features.length) return;
-  const wide = $('map').clientWidth > 700 && !$('detail').hidden;
   map.fitBounds(bounds(features), {
-    padding: { top: 65, bottom: 75, left: 50, right: wide ? 395 : 50 },
+    padding: mapPadding(),
     maxZoom: 16,
     duration: reducedMotion ? 0 : 650
   });
 }
 
-function status(message) {
+function status(message, retry = null) {
   $('map-status').textContent = message;
-  $('map-status').hidden = !message;
+  $('map-notice').hidden = !message;
+  $('retry-load').hidden = !retry;
+  $('retry-load').onclick = retry;
+}
+
+function readPreference(key) {
+  try { return localStorage.getItem(key); }
+  catch { return null; } // Storage can be disabled; it must not prevent browsing.
+}
+
+function savePreference(key, value) {
+  try { localStorage.setItem(key, value); }
+  catch { /* Preferences remain valid for this page session. */ }
+}
+
+function reviewDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(value + 'T00:00:00Z');
+  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) return null;
+  return new Intl.DateTimeFormat('es-CL', { dateStyle: 'long', timeZone: 'UTC' }).format(date);
+}
+
+function streetColorExpression() {
+  const tokens = getComputedStyle(document.documentElement);
+  const expression = ['match', ['get', 'ESTADO']];
+  for (const [state, token] of Object.entries(stateTokens)) {
+    expression.push(state, tokens.getPropertyValue(token).trim());
+  }
+  expression.push(tokens.getPropertyValue('--state-pendiente').trim());
+  return expression;
+}
+
+function updateMapPalette() {
+  if (mapReady && !styleChanging && map.getLayer('streets')) {
+    map.setPaintProperty('streets', 'line-color', streetColorExpression());
+  }
+}
+
+function updateDetailPresentation() {
+  const expanded = !compactLayout.matches || detailExpanded;
+  const hidingFocusedContent = !expanded && $('detail-body').contains(document.activeElement);
+  $('detail-body').hidden = !expanded;
+  $('detail-expand').setAttribute('aria-expanded', String(expanded));
+  $('detail-expand').textContent = expanded ? 'Ocultar fuentes y notas' : 'Ver fuentes y notas';
+  if (hidingFocusedContent) $('detail-expand').focus();
 }
 
 function safeSource(value) {
@@ -80,10 +152,11 @@ function updateNavButtons() {
   $('next-street').disabled = (idx === -1 || idx >= visibleNames.length - 1);
 }
 
-function selectStreet(name, zoom = true) {
+function selectStreet(name, zoom = true, moveFocus = true) {
   const features = grouped.get(name);
   if (!features) return;
   selected = name;
+  if (!$('detail').contains(document.activeElement)) detailOrigin = document.activeElement;
   const p = features[0].properties;
 
   $('detail').hidden = false;
@@ -95,12 +168,20 @@ function selectStreet(name, zoom = true) {
   $('detail-ref').textContent = p.REFERENTE;
   $('detail-description').textContent = p.DESCRIPCION;
   $('detail-notes').textContent = p.NOTAS;
+  $('detail-notes').hidden = !p.NOTAS;
 
   const pendingNote = $('detail-pending');
   pendingNote.hidden = p.ESTADO !== 'PENDIENTE';
   pendingNote.textContent = p.ESTADO === 'PENDIENTE'
-    ? 'Sin atribución verificable en las fuentes abiertas consultadas (octubre 2026). No significa que la calle no tenga historia: falta confirmar su origen en documentos municipales de Providencia.'
+    ? 'Sin atribución verificable en las fuentes consultadas. No significa que la calle no tenga historia: falta confirmar su origen en documentos municipales de Providencia.'
     : '';
+  const date = reviewDate(p.FECHA_REV);
+  $('detail-date').textContent = date ? 'Revisado el ' + date : 'Fecha de revisión no disponible';
+  $('detail-certainty').textContent = p.ESTADO === 'REFERENTE_PROPUESTO'
+    ? 'La fuente identifica al referente; la dedicación de esta calle sigue pendiente de confirmar.'
+    : p.ESTADO === 'SIGNIFICADO_LITERAL'
+      ? 'El significado del nombre no confirma el acto de denominación de la calle.' : '';
+  $('detail-certainty').hidden = !$('detail-certainty').textContent;
   $('detail-count').textContent = number(features.length) + ' registros con este nombre';
   $('copy-link').textContent = 'Copiar enlace';
 
@@ -114,7 +195,8 @@ function selectStreet(name, zoom = true) {
     $('detail-source').removeAttribute('href');
   }
 
-  if (mapReady && map.getSource('selection')) {
+  updateDetailPresentation();
+  if (mapReady && !styleChanging && map.getSource('selection')) {
     map.getSource('selection').setData({ type: 'FeatureCollection', features });
   }
 
@@ -129,12 +211,15 @@ function selectStreet(name, zoom = true) {
   history.replaceState(null, '', url);
 
   if (zoom) fit(features);
+  if (moveFocus) $('detail-name').focus({ preventScroll: true });
 }
 
 function closeDetail() {
+  const restoreFocus = $('detail').contains(document.activeElement);
+  const selectedButton = [...$('results').querySelectorAll('.street')].find((button) => button.dataset.name === selected);
   selected = '';
   $('detail').hidden = true;
-  if (mapReady && map.getSource('selection')) {
+  if (mapReady && !styleChanging && map.getSource('selection')) {
     map.getSource('selection').setData(empty);
   }
   const url = new URL(location.href);
@@ -145,9 +230,15 @@ function closeDetail() {
     button.setAttribute('aria-pressed', 'false');
   }
   updateNavButtons();
+  if (restoreFocus) {
+    const target = selectedButton || (detailOrigin?.isConnected && detailOrigin !== document.body ? detailOrigin : $('search'));
+    if ($('sidebar').inert && $('sidebar').contains(target)) $('sidebar-toggle').focus();
+    else target.focus();
+  }
 }
 
 function filterCatalogue() {
+  if (!catalogueReady) return;
   const query = normalize($('search').value.trim());
   const type = $('type').value;
   const state = $('state').value;
@@ -180,7 +271,7 @@ function filterCatalogue() {
   });
 
   visibleNames = filtered.map((p) => p.NOMBRE_ART);
-  $('count').textContent = number(filtered.length) + ' nombres';
+  $('count').textContent = number(filtered.length) + (filtered.length === 1 ? ' nombre' : ' nombres');
 
   const fragment = document.createDocumentFragment();
   for (const p of filtered) {
@@ -191,8 +282,8 @@ function filterCatalogue() {
 
     const dot = document.createElement('span');
     dot.className = 'street-dot';
-    dot.style.background = stateColors[p.ESTADO] || '#64748b';
-    dot.title = labels[p.ESTADO] || p.ESTADO;
+    dot.style.background = `var(${stateTokens[p.ESTADO] || stateTokens.PENDIENTE})`;
+    dot.setAttribute('aria-hidden', 'true');
 
     const info = document.createElement('div');
     info.className = 'street-info';
@@ -204,6 +295,10 @@ function filterCatalogue() {
     subtitle.textContent = p.TIPOS_VIA.replaceAll(' | ', ' · ') + ' / ' + number(p.N_TRAMOS) + ' registros';
 
     info.append(title, subtitle);
+    const stateLabel = document.createElement('span');
+    stateLabel.className = 'street-state';
+    stateLabel.textContent = labels[p.ESTADO] || p.ESTADO;
+    info.append(stateLabel);
 
     if (query && p._matchType && p._matchType !== 'name') {
       const matchBadge = document.createElement('span');
@@ -221,7 +316,7 @@ function filterCatalogue() {
     button.append(dot, info);
     button.addEventListener('click', () => {
       selectStreet(p.NOMBRE_ART);
-      if (window.innerWidth <= 580) {
+      if (compactLayout.matches) {
         $('detail').scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'instant' : 'smooth' });
       }
     });
@@ -243,7 +338,7 @@ function filterCatalogue() {
 }
 
 function applyMapFilter() {
-  if (!mapReady || !map.getLayer('streets')) return;
+  if (!mapReady || styleChanging || !map.getLayer('streets')) return;
   const filter = ['in', ['get', 'NOMBRE_ART'], ['literal', visibleNames]];
   map.setFilter('streets', filter);
   map.setFilter('hit', filter);
@@ -259,16 +354,7 @@ function getStreetsLayersDefinition() {
       filter: filter,
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
-        'line-color': [
-          'match',
-          ['get', 'ESTADO'],
-          'RESEÑA_LOCAL', '#1f7a5b',
-          'REFERENTE_PROPUESTO', '#2563eb',
-          'SIGNIFICADO_LITERAL', '#7c3aed',
-          'RESEÑA_POR_CORROBORAR', '#d97706',
-          'IDENTIDAD_POR_VERIFICAR', '#d97706',
-          '#64748b' // default (PENDIENTE)
-        ],
+        'line-color': streetColorExpression(),
         'line-width': ['interpolate', ['linear'], ['zoom'], 11, 1.8, 16, 4.5],
         'line-opacity': 0.85
       }
@@ -284,7 +370,7 @@ function getStreetsLayersDefinition() {
       type: 'line',
       source: 'selection',
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#b65c22', 'line-width': 5 }
+      paint: { 'line-color': getComputedStyle(document.documentElement).getPropertyValue('--state-selected').trim(), 'line-width': 5 }
     },
     {
       id: 'hit',
@@ -386,81 +472,122 @@ let currentBasemap = 'positron';
 function setUITheme(theme) {
   currentTheme = theme;
   document.documentElement.dataset.theme = theme;
-  localStorage.setItem('theme', theme);
+  savePreference('theme', theme);
   if ($('theme-label')) $('theme-label').textContent = theme === 'dark' ? 'Oscuro' : 'Claro';
+  $('theme-toggle').setAttribute('aria-pressed', String(theme === 'dark'));
+  updateMapPalette();
+}
+
+function updateBasemapControls() {
+  $('basemap-btn').disabled = !mapReady;
+  $('basemap-label').textContent = confirmedBasemap
+    ? 'Mapa: ' + basemaps[confirmedBasemap].name : 'Mapa: solo calles';
+  for (const btn of document.querySelectorAll('.basemap-option')) {
+    const active = btn.dataset.style === confirmedBasemap;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', String(active));
+  }
+}
+
+/** Apply a style with bounded waiting and removable handlers for stale requests. */
+function replaceMapStyle(style, signal) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      map.off('style.load', onLoad);
+      map.off('error', onError);
+      signal.removeEventListener('abort', onAbort);
+    };
+    const finish = (error) => { cleanup(); error ? reject(error) : resolve(); };
+    const onLoad = () => finish();
+    const onError = (event) => finish(event.error || new Error('Style load failed'));
+    const onAbort = () => finish(new Error('Style request cancelled'));
+    const timer = setTimeout(() => finish(new Error('Style load timed out')), LOAD_TIMEOUT_MS);
+    map.once('style.load', onLoad);
+    map.on('error', onError);
+    signal.addEventListener('abort', onAbort, { once: true });
+    if (signal.aborted) return onAbort();
+    try { map.setStyle(style, { diff: false }); }
+    catch (error) { finish(error); }
+  });
+}
+
+function restoreMapState() {
+  setupMapLayers();
+  applyMapFilter();
+  map.getSource('selection').setData(selected && grouped.has(selected)
+    ? { type: 'FeatureCollection', features: grouped.get(selected) } : empty);
+  updateMapPalette();
 }
 
 async function changeBasemap(styleKey) {
   const cfg = basemaps[styleKey];
-  if (!cfg) return;
-
-  currentBasemap = styleKey;
-  localStorage.setItem('basemap', styleKey);
-
-  if ($('basemap-label')) $('basemap-label').textContent = 'Mapa: ' + cfg.name;
-  for (const btn of document.querySelectorAll('.basemap-option')) {
-    btn.classList.toggle('active', btn.dataset.style === styleKey);
-  }
-
-  setUITheme(cfg.theme);
-
-  if (!mapReady || !map) return;
-
+  if (!cfg || !mapReady || !map) return;
+  const request = ++basemapRequest;
+  basemapController?.abort();
+  const controller = new AbortController();
+  basemapController = controller;
+  const timer = setTimeout(() => controller.abort(), LOAD_TIMEOUT_MS);
+  let replaced = false;
+  status('Cargando mapa base ' + cfg.name + '…');
   try {
-    let rawStyle;
+    let rawStyle = cfg.style;
     if (cfg.type === 'url') {
-      const resp = await fetch(cfg.url, { signal: AbortSignal.timeout(9000) });
-      if (!resp.ok) throw new Error('Basemap style unavailable');
-      rawStyle = await resp.json();
-    } else {
-      rawStyle = cfg.style;
+      const response = await fetch(cfg.url, { signal: controller.signal });
+      if (!response.ok) throw new Error('Basemap style unavailable');
+      rawStyle = await response.json();
     }
-
-    const preparedStyle = injectLayersIntoStyle(rawStyle);
-    map.setStyle(preparedStyle, { diff: false });
-
-    const onStyleReady = () => {
-      setupMapLayers();
-      applyMapFilter();
-      if (selected && grouped.has(selected)) {
-        const selSource = map.getSource('selection');
-        if (selSource) {
-          selSource.setData({ type: 'FeatureCollection', features: grouped.get(selected) });
-        }
+    if (request !== basemapRequest) return;
+    if (controller.signal.aborted) throw new Error('Basemap request timed out');
+    replaced = true;
+    styleChanging = true;
+    await replaceMapStyle(injectLayersIntoStyle(rawStyle), controller.signal);
+    if (request !== basemapRequest) return;
+    styleChanging = false;
+    restoreMapState();
+    lastGoodStyle = map.getStyle();
+    currentBasemap = confirmedBasemap = styleKey;
+    savePreference('basemap', styleKey);
+    updateBasemapControls();
+    status('');
+  } catch (error) {
+    if (request !== basemapRequest) return;
+    console.warn('Could not load basemap style:', error);
+    if ((replaced || styleChanging) && lastGoodStyle) {
+      const recovery = new AbortController();
+      basemapController = recovery;
+      try {
+        await replaceMapStyle(injectLayersIntoStyle(lastGoodStyle), recovery.signal);
+        if (request !== basemapRequest) return;
+        styleChanging = false;
+        restoreMapState();
+      } catch (recoveryError) {
+        if (request !== basemapRequest) return;
+        console.warn('Could not restore basemap:', recoveryError);
+        confirmedBasemap = null;
       }
-    };
-
-    map.once('styledata', onStyleReady);
-    map.once('style.load', onStyleReady);
-  } catch (err) {
-    console.warn('Could not load basemap style:', err);
-    status('No se pudo cargar el mapa base seleccionado.');
+    }
+    if (request !== basemapRequest) return;
+    styleChanging = false;
+    updateBasemapControls();
+    status('No se pudo cargar el mapa ' + cfg.name + '. El catálogo sigue disponible.', () => changeBasemap(styleKey));
+  } finally {
+    clearTimeout(timer);
+    if (request === basemapRequest) basemapController = null;
   }
 }
 
 async function initializeMap() {
   if (!window.maplibregl) {
-    status('No se pudo cargar el visor. El catálogo y las fichas siguen disponibles. Recarga para volver a intentarlo.');
+    status('No se pudo cargar el visor. El catálogo y las fichas siguen disponibles.', () => location.reload());
     return;
   }
-
-  let style = blankStyle, basemapAvailable = true;
-  const cfg = basemaps[currentBasemap] || basemaps.positron;
-
+  status('Preparando el mapa…');
+  mapReady = false;
+  updateBasemapControls();
   try {
-    if (cfg.type === 'url') {
-      const response = await fetch(cfg.url, { signal: AbortSignal.timeout(12000) });
-      if (!response.ok) throw new Error('Map style unavailable');
-      style = await response.json();
-    } else {
-      style = cfg.style;
-    }
-  } catch {
-    basemapAvailable = false;
-  }
-
-  try {
-    const initialStyle = injectLayersIntoStyle(style);
+    // Load the local street geometry first, independently of remote basemaps.
+    const initialStyle = injectLayersIntoStyle(blankStyle);
     map = new maplibregl.Map({
       container: 'map',
       style: initialStyle,
@@ -471,62 +598,77 @@ async function initializeMap() {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'Geometrías: archivo aportado por el usuario' }), 'bottom-right');
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
-  } catch {
-    status('Este navegador no pudo iniciar el mapa WebGL. Puedes consultar las fichas desde el catálogo.');
+    await new Promise((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        map.off('load', onLoad);
+        map.off('error', onError);
+      };
+      const onLoad = () => { cleanup(); resolve(); };
+      const onError = (event) => { cleanup(); reject(event.error || new Error('Map unavailable')); };
+      const timer = setTimeout(() => onError({ error: new Error('Map load timed out') }), LOAD_TIMEOUT_MS);
+      map.once('load', onLoad);
+      map.once('error', onError);
+    });
+  } catch (error) {
+    console.warn('Could not initialize map:', error);
+    if (map) map.remove();
+    map = null;
+    status('No se pudo iniciar el mapa. Puedes consultar las fichas desde el catálogo.', initializeMap);
     return;
   }
 
-  map.on('error', () => status('Algunas capas del mapa base no se han podido cargar. Puedes seguir consultando el catálogo y las calles disponibles.'));
-
-  map.on('load', () => {
-    setupMapLayers();
-    mapReady = true;
-    applyMapFilter();
-
-    map.on('click', 'hit', (event) => {
-      if (event.features?.length) {
-        selectStreet(event.features[0].properties.NOMBRE_ART, false);
-      }
-    });
-
-    const tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
-    map.on('mousemove', 'hit', (event) => {
-      map.getCanvas().style.cursor = 'pointer';
-      if (event.features?.length) {
-        tooltip.setLngLat(event.lngLat).setText(event.features[0].properties.NOMBRE_ART).addTo(map);
-      }
-    });
-    map.on('mouseleave', 'hit', () => {
-      map.getCanvas().style.cursor = '';
-      tooltip.remove();
-    });
-
-    if (selected) selectStreet(selected);
-    else fit(data.features);
-
-    status(basemapAvailable ? '' : 'Mapa base sin conexión. Se muestran las calles del archivo; el catálogo funciona normalmente.');
+  mapReady = true;
+  lastGoodStyle = map.getStyle();
+  updateBasemapControls();
+  restoreMapState();
+  map.on('error', () => {
+    if (!basemapController) {
+      status('Algunas capas no se han podido cargar. El catálogo sigue disponible.', () => changeBasemap(confirmedBasemap || currentBasemap));
+    }
   });
+
+  map.on('click', 'hit', (event) => {
+    if (event.features?.length) {
+      selectStreet(event.features[0].properties.NOMBRE_ART, false);
+      if (compactLayout.matches) $('detail').scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'instant' : 'smooth' });
+    }
+  });
+
+  const tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
+  map.on('mousemove', 'hit', (event) => {
+    map.getCanvas().style.cursor = 'pointer';
+    if (event.features?.length) {
+      tooltip.setLngLat(event.lngLat).setText(event.features[0].properties.NOMBRE_ART).addTo(map);
+    }
+  });
+  map.on('mouseleave', 'hit', () => {
+    map.getCanvas().style.cursor = '';
+    tooltip.remove();
+  });
+
+  if (selected) fit(grouped.get(selected));
+  else fit(data.features);
+  await changeBasemap(currentBasemap);
 }
 
 async function start() {
-  const savedBasemap = localStorage.getItem('basemap');
-  const savedTheme = localStorage.getItem('theme');
+  $('results').setAttribute('aria-busy', 'true');
+  const savedBasemap = readPreference('basemap');
+  const savedTheme = readPreference('theme');
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 
   currentBasemap = savedBasemap || (savedTheme === 'dark' || (!savedTheme && prefersDark) ? 'dark' : 'positron');
   if (!basemaps[currentBasemap]) currentBasemap = 'positron';
 
-  setUITheme(basemaps[currentBasemap].theme);
-  if ($('basemap-label')) $('basemap-label').textContent = 'Mapa: ' + basemaps[currentBasemap].name;
-  for (const btn of document.querySelectorAll('.basemap-option')) {
-    btn.classList.toggle('active', btn.dataset.style === currentBasemap);
-  }
+  setUITheme(['light', 'dark'].includes(savedTheme) ? savedTheme : (prefersDark ? 'dark' : 'light'));
+  updateBasemapControls();
 
   try {
-    const response = await fetch('./calles.geojson');
+    const response = await fetch('./calles.geojson', { signal: AbortSignal.timeout(LOAD_TIMEOUT_MS) });
     if (!response.ok) throw new Error('Dataset unavailable');
     data = await response.json();
-    if (data.type !== 'FeatureCollection' || !data.features.length) throw new Error('Empty dataset');
+    if (data.type !== 'FeatureCollection' || !Array.isArray(data.features) || !data.features.length) throw new Error('Empty dataset');
 
     for (const feature of data.features) {
       const name = feature.properties.NOMBRE_ART;
@@ -537,6 +679,8 @@ async function start() {
     catalogue = [...grouped.values()].map((f) => f[0].properties).sort((a, b) => a.NOMBRE_ART.localeCompare(b.NOMBRE_ART, 'es'));
     $('total').textContent = number(catalogue.length);
     $('segments').textContent = number(data.features.length);
+    $('about-total').textContent = number(catalogue.length);
+    $('about-segments').textContent = number(data.features.length);
     $('pending-count').textContent = number(catalogue.filter((p) => p.ESTADO === 'PENDIENTE').length);
 
     for (const type of [...new Set(catalogue.flatMap((p) => p.TIPOS_VIA.split(' | ')))].sort()) {
@@ -546,16 +690,19 @@ async function start() {
       $('type').append(option);
     }
 
+    catalogueReady = true;
     filterCatalogue();
 
     const initial = new URL(location.href).searchParams.get('calle');
-    if (initial && grouped.has(initial)) selectStreet(initial, false);
-
-    await initializeMap();
+    if (initial && grouped.has(initial)) selectStreet(initial, false, false);
   } catch {
     $('count').textContent = 'Error al cargar los datos';
-    status('No se pudo cargar el catálogo. Recarga la página; si abriste el HTML directamente, sirve la carpeta con un servidor web.');
+    status('No se pudo cargar el catálogo. Comprueba la conexión y vuelve a intentarlo.', () => location.reload());
+    $('results').textContent = 'El catálogo no está disponible. Puedes volver a intentarlo.';
+  } finally {
+    $('results').setAttribute('aria-busy', 'false');
   }
+  if (catalogueReady) await initializeMap();
 }
 
 // Event Listeners
@@ -587,17 +734,20 @@ $('close-detail').addEventListener('click', closeDetail);
 $('focus-street').addEventListener('click', () => {
   if (selected && grouped.has(selected)) {
     fit(grouped.get(selected));
+    if (compactLayout.matches) $('map').scrollIntoView({ block: 'center', behavior: reducedMotion ? 'instant' : 'smooth' });
   }
 });
 
 $('prev-street').addEventListener('click', () => {
   const idx = visibleNames.indexOf(selected);
-  if (idx > 0) selectStreet(visibleNames[idx - 1]);
+  if (idx > 0) selectStreet(visibleNames[idx - 1], true, false);
+  if ($('prev-street').disabled) $('detail-name').focus();
 });
 
 $('next-street').addEventListener('click', () => {
   const idx = visibleNames.indexOf(selected);
-  if (idx >= 0 && idx < visibleNames.length - 1) selectStreet(visibleNames[idx + 1]);
+  if (idx >= 0 && idx < visibleNames.length - 1) selectStreet(visibleNames[idx + 1], true, false);
+  if ($('next-street').disabled) $('detail-name').focus();
 });
 
 // Colapso de panel lateral
@@ -606,6 +756,7 @@ $('sidebar-toggle').addEventListener('click', () => {
   $('sidebar-toggle').textContent = isCollapsed ? '▶' : '◀';
   $('sidebar-toggle').setAttribute('aria-expanded', String(!isCollapsed));
   $('sidebar-toggle').title = isCollapsed ? 'Mostrar catálogo' : 'Ocultar catálogo';
+  $('sidebar').inert = isCollapsed;
   if (mapReady && map) {
     setTimeout(() => map.resize(), 260);
   }
@@ -649,14 +800,15 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && basemapDropdown && !basemapDropdown.hidden) {
     toggleBasemapDropdown(false);
     if (basemapBtn) basemapBtn.focus();
+  } else if (e.key === 'Escape' && !$('detail').hidden && $('detail').contains(document.activeElement)) {
+    closeDetail();
   }
 });
 
 // Toggle de tema claro / oscuro en header
 $('theme-toggle').addEventListener('click', () => {
   const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-  const nextBasemap = nextTheme === 'dark' ? 'dark' : 'positron';
-  changeBasemap(nextBasemap);
+  setUITheme(nextTheme);
 });
 
 $('about-open').addEventListener('click', () => $('about').showModal());
@@ -671,4 +823,28 @@ $('copy-link').addEventListener('click', async () => {
   }
 });
 
+$('detail-expand').addEventListener('click', () => {
+  detailExpanded = !detailExpanded;
+  updateDetailPresentation();
+});
+compactLayout.addEventListener('change', () => {
+  if (compactLayout.matches) {
+    document.body.classList.remove('sidebar-collapsed');
+    $('sidebar').inert = false;
+    $('sidebar-toggle').textContent = '◀';
+    $('sidebar-toggle').setAttribute('aria-expanded', 'true');
+  }
+  updateDetailPresentation();
+});
+if (window.ResizeObserver) {
+  const observer = new ResizeObserver(() => {
+    document.documentElement.style.setProperty('--header-height', document.querySelector('header').getBoundingClientRect().height + 'px');
+    if (mapReady) {
+      map.resize();
+      if (selected && grouped.has(selected)) fit(grouped.get(selected));
+    }
+  });
+  observer.observe(document.querySelector('header'));
+  observer.observe($('map'));
+}
 start();

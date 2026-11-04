@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
+const styleSpec = require('@maplibre/maplibre-gl-style-spec');
 
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(__dirname, 'style.css'), 'utf8');
@@ -128,41 +129,52 @@ function fixture({ compact = false, storageBlocked = false } = {}) {
 
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 
-// Evaluate the small expression subset used by the display hierarchy.
-function evaluateScale(expr, properties, zoom) {
-  if (!Array.isArray(expr)) return expr;
-  const ev = (value) => evaluateScale(value, properties, zoom);
-  switch (expr[0]) {
-    case 'get': return properties[expr[1]];
-    case 'zoom': return zoom;
-    case 'coalesce': return expr.slice(1).map(ev).find((v) => v != null);
-    case '==': return ev(expr[1]) === ev(expr[2]);
-    case 'in': return ev(expr[2]).includes(ev(expr[1]));
-    case 'case':
-      for (let i = 1; i < expr.length - 1; i += 2) if (ev(expr[i])) return ev(expr[i + 1]);
-      return ev(expr.at(-1));
-    case 'match': {
-      const input = ev(expr[1]);
-      for (let i = 2; i < expr.length - 1; i += 2) {
-        if (Array.isArray(expr[i]) ? expr[i].includes(input) : expr[i] === input) return ev(expr[i + 1]);
-      }
-      return ev(expr.at(-1));
+test('MapLibre: valida estilos reales, temas y expresiones con el paquete oficial', () => {
+  const f = fixture(); f.loadFeatures([feature('AVENIDA'), feature('PASAJE')]);
+  for (const theme of ['light', 'dark']) {
+    f.context.theme = theme;
+    f.run('setUITheme(theme)');
+    for (const base of ['blankStyle', 'basemaps.satellite.style']) {
+      const style = JSON.parse(JSON.stringify(f.run(`injectLayersIntoStyle(${base})`)));
+      const errors = styleSpec.validateStyleMin(style);
+      assert.deepEqual(errors.map(e => e.message), []);
+      // Ensure the official validator detects invalid output, not just an empty fixture.
+      style.layers.find(l => l.id === 'streets').paint['line-width'] = 'invalid-width';
+      assert.ok(styleSpec.validateStyleMin(style).length > 0);
     }
-    case 'interpolate': {
-      if (zoom <= expr[3]) return ev(expr[4]);
-      for (let i = 5; i < expr.length; i += 2) {
-        if (zoom <= expr[i]) {
-          const t = (zoom - expr[i - 2]) / (expr[i] - expr[i - 2]);
-          return ev(expr[i - 1]) * (1 - t) + ev(expr[i + 1]) * t;
-        }
-      }
-      return ev(expr.at(-1));
-    }
-    default: throw new Error('Unexpected expression: ' + expr[0]);
   }
+});
+
+test('etiquetas: zoom progresivo, filtros sincronizados y restauración sin duplicados', () => {
+  const f = fixture(); f.loadFeatures([feature('ALAMEDA'), feature('B')]);
+  const map = f.readyMap();
+  const labels = map.style.layers.filter(l => l.type === 'symbol');
+  assert.deepEqual(labels.map(l => l.minzoom), [12, 14, 16]);
+  assert.ok(labels.every(l => l.layout['text-allow-overlap'] === false));
+  f.el('search').value = 'ALAMEDA'; f.run('filterCatalogue()');
+  for (const label of labels) assert.deepEqual(Array.from(label.filter[1][2][1]), ['ALAMEDA']);
+  f.context.base = { version: 8, sources: {}, layers: [
+    { id: 'road', type: 'symbol', 'source-layer': 'transportation_name', layout: { 'text-field': '{name}' } },
+    { id: 'shield', type: 'symbol', 'source-layer': 'transportation_name', layout: { 'icon-image': 'road' } },
+    { id: 'place', type: 'symbol', 'source-layer': 'place', layout: {} }
+  ] };
+  const style = f.run('injectLayersIntoStyle(injectLayersIntoStyle(base))');
+  assert.equal(style.layers.filter(l => l.id.startsWith('street-label-')).length, 3);
+  assert.equal(style.layers.find(l => l.id === 'road').layout.visibility, 'none');
+  assert.equal(style.layers.find(l => l.id === 'shield').layout.visibility, undefined);
+  assert.equal(style.layers.find(l => l.id === 'place').layout.visibility, undefined);
+  assert.equal(f.context.base.layers[0].layout.visibility, undefined);
+  assert.match(style.glyphs, /\/fonts\//);
+});
+
+// Compile and evaluate with the official MapLibre implementation.
+function evaluateScale(expr, properties, zoom) {
+  const compiled = styleSpec.createPropertyExpression(expr, styleSpec.latest.paint_line["line-width"]);
+  assert.equal(compiled.result, "success", JSON.stringify(compiled.value));
+  return compiled.value.evaluate({ zoom }, { type: "LineString", properties });
 }
 
-test('jerarquía: grosores ordenados, aparición gradual y valores acotados', () => {
+test('MapLibre: grosores ordenados, aparición gradual y valores acotados', () => {
   const f = fixture();
   const width = f.run('streetScaleExpression("width")');
   const opacity = f.run('streetScaleExpression("opacity")');

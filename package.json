@@ -1,0 +1,14 @@
+{
+  "name": "calles-providencia",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Atlas de calles de Providencia y validación de estilos MapLibre",
+  "scripts": {
+    "test": "node --test test_app.js test_sync_sheets.js",
+    "validate:style": "node --test --test-name-pattern=MapLibre test_app.js"
+  },
+  "engines": { "node": ">=22" },
+  "devDependencies": {
+    "@maplibre/maplibre-gl-style-spec": "23.3.0"
+  }
+}

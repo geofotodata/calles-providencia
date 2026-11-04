@@ -25,3 +25,11 @@ Se interpolan grosor y opacidad entre esos niveles; fuera del intervalo se manti
 El color conserva el estado de investigación. La selección mantiene su halo y se muestra incluso si el tipo está oculto por zoom; el catálogo conserva todos los resultados que cumplen los filtros. Los tramos menores ocultos no reciben clics ni etiquetas al pasar el puntero. La regla se aplica a las capas temáticas en los cuatro mapas base; no modifica las calles propias del proveedor.
 
 Referencia consultada el 04-11-2026: https://maplibre.org/maplibre-style-spec/expressions/ (`interpolate`, `zoom`, `match`) y https://maplibre.org/maplibre-style-spec/layers/ (`line-width`, `line-opacity`).
+
+### Etiquetas del catálogo
+
+Las etiquetas usan `NOMBRE_ART` y la misma clasificación por tramo: autopistas y avenidas desde zoom 12, calles y caleteras desde 14, pasajes y peatonales desde 16. Los puentes conservan la regla de continuidad descrita arriba. Los umbrales habilitan etiquetas; el motor puede omitirlas por colisión, curvatura o falta de longitud del tramo. El tamaño aumenta de 11 a 15 px entre zoom 12 y 19. Texto oscuro con halo blanco permite distinguir nombres sobre los cuatro fondos.
+
+Las etiquetas siguen los filtros del catálogo. Se ocultan las capas de nombres viales de `transportation_name` del proveedor, conservando escudos de rutas con iconos y nombres de lugares. Esto también oculta nombres viales externos al catálogo fuera de Providencia. La imagen satelital recibe las mismas etiquetas del catálogo. Se usa Noto Sans Regular y el servicio de glifos de OpenFreeMap (también en satélite y fondo de recuperación); sin conexión las etiquetas pueden faltar, mientras el catálogo conserva los nombres. No se cambian nombres, atributos ni geometrías originales.
+
+Estilos positron, dark y liberty consultados el 04-11-2026 en https://tiles.openfreemap.org/styles/ . Implementación basada en `symbol-placement`, `minzoom`, `text-size`, `text-allow-overlap` y `text-halo-width` de https://maplibre.org/maplibre-style-spec/layers/ .

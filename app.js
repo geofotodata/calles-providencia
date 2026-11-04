@@ -342,6 +342,31 @@ function applyMapFilter() {
   const filter = ['in', ['get', 'NOMBRE_ART'], ['literal', visibleNames]];
   map.setFilter('streets', filter);
   map.setFilter('hit', filter);
+  for (const layer of streetLabelLayers()) {
+    if (map.getLayer(layer.id)) map.setFilter(layer.id, layer.filter);
+  }
+}
+
+const STREET_LABEL_IDS = ['street-label-major', 'street-label-local', 'street-label-minor'];
+
+function streetLabelLayers() {
+  const major = ['in', streetClassExpression(), ['literal', ['AUTOPISTA', 'AVENIDA']]];
+  const minor = ['in', streetClassExpression(), ['literal', ['PASAJE', 'PEATONAL']]];
+  const groups = [major, ['all', ['!', major], ['!', minor]], minor];
+  return STREET_LABEL_IDS.map((id, index) => ({
+    id, type: 'symbol', source: 'streets', minzoom: [12, 14, 16][index],
+    filter: ['all', ['in', ['get', 'NOMBRE_ART'], ['literal', visibleNames]], groups[index]],
+    layout: {
+      'symbol-placement': 'line', 'symbol-spacing': 350,
+      'symbol-sort-key': index,
+      'text-field': ['get', 'NOMBRE_ART'], 'text-font': ['Noto Sans Regular'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 12, 11, 16, 13, 19, 15],
+      'text-max-angle': 30, 'text-padding': 5,
+      'text-allow-overlap': false, 'text-ignore-placement': false,
+      'text-keep-upright': true
+    },
+    paint: { 'text-color': '#203b38', 'text-halo-color': '#ffffff', 'text-halo-width': 2 }
+  }));
 }
 
 // Display hierarchy by segment type, not an official functional road ranking.
@@ -407,12 +432,14 @@ function getStreetsLayersDefinition() {
       source: 'streets',
       filter: filter,
       paint: { 'line-color': '#000000', 'line-opacity': 0, 'line-width': 16 }
-    }
+    },
+    ...streetLabelLayers()
   ];
 }
 
 function injectLayersIntoStyle(baseStyle) {
   const style = JSON.parse(JSON.stringify(baseStyle));
+  style.glyphs = style.glyphs || 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
   style.sources = style.sources || {};
   style.sources.streets = { type: 'geojson', data: data || empty };
   style.sources.selection = {
@@ -422,7 +449,13 @@ function injectLayersIntoStyle(baseStyle) {
       : empty
   };
   style.layers = style.layers || [];
-  style.layers = style.layers.filter((l) => !['streets', 'selection-halo', 'selection-line', 'hit'].includes(l.id));
+  style.layers = style.layers.filter((l) => !['streets', 'selection-halo', 'selection-line', 'hit', ...STREET_LABEL_IDS].includes(l.id));
+  // Replace road names across the basemap; preserve route shields and place labels.
+  for (const layer of style.layers) {
+    if (layer.type === 'symbol' && layer['source-layer'] === 'transportation_name' && !layer.layout?.['icon-image']) {
+      layer.layout = { ...layer.layout, visibility: 'none' };
+    }
+  }
   style.layers.push(...getStreetsLayersDefinition());
   return style;
 }

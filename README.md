@@ -105,6 +105,18 @@ Abre `http://localhost:8000` en tu navegador.
 
 ## Validación y Tests
 
+El proyecto integra el paquete oficial del repositorio [MapLibre Style Specification](https://github.com/maplibre/maplibre-style-spec): `@maplibre/maplibre-gl-style-spec`, fijado en **23.3.0**, dentro del rango usado por MapLibre GL JS 5.6.2. Se utiliza como herramienta de desarrollo para validar los estilos generados y evaluar las expresiones de jerarquía con la implementación oficial. La página sigue funcionando como sitio estático, sin proceso de compilación.
+
+Con Node.js 22 o superior y npm disponibles:
+
+```sh
+npm ci --ignore-scripts
+npm test
+npm run validate:style
+```
+
+`package-lock.json` fija las dependencias. El flujo `.github/workflows/test.yml` ejecuta las pruebas en cada push y pull request. La validación automática cubre las capas generadas, etiquetas, fuentes, temas y reglas de zoom; no sustituye la inspección visual ni garantiza disponibilidad de teselas o glifos externos. Para retirar esta integración, se pueden quitar la dependencia de desarrollo, sus pruebas y el flujo de validación sin cambiar el visor.
+
 El repositorio incluye pruebas unitarias para garantizar que ningún tramo geométrico se corrompa, pierda o modifique durante las uniones con el catálogo:
 
 ```sh

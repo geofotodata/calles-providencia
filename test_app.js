@@ -48,7 +48,7 @@ class MapDouble {
   resize() {}
 }
 
-function fixture({ compact = false, storageBlocked = false } = {}) {
+function fixture({ compact = false, storageBlocked = false, reduceMotion = false } = {}) {
   const elements = new Map();
   const document = { activeElement: null, addEventListener() {} };
   class Element {
@@ -103,7 +103,7 @@ function fixture({ compact = false, storageBlocked = false } = {}) {
   const media = { matches: compact, addEventListener(type, fn) { this.onchange = fn; } };
   const saved = new Map();
   const context = {
-    document, window: { matchMedia: (query) => query.includes('max-width') ? media : { matches: false } },
+    document, window: { matchMedia: (query) => query.includes('max-width') ? media : { matches: reduceMotion } },
     localStorage: { getItem(key) { if (storageBlocked) throw new Error('Blocked'); return saved.get(key) ?? null; },
       setItem(key, value) { if (storageBlocked) throw new Error('Blocked'); saved.set(key, value); } },
     getComputedStyle: () => ({ getPropertyValue: (key) => (document.documentElement.dataset.theme === 'dark' ? darkTokens : lightTokens)[key] || '' }),
@@ -128,6 +128,26 @@ function fixture({ compact = false, storageBlocked = false } = {}) {
 }
 
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+
+test('orientación: desplazamiento en pantalla, norte real y movimiento reducido', () => {
+  for (const reduceMotion of [false, true]) {
+    const f = fixture({ reduceMotion });
+    f.el('pan-up').click(); // Safe before the map is available.
+    f.el('map-north').click();
+    const map = f.readyMap();
+    const moves = [];
+    map.panBy = (offset, options) => moves.push({ offset: Array.from(offset), duration: options.duration });
+    map.getBearing = () => 90;
+    map.resetNorth = (options) => { map.northDuration = options.duration; };
+    for (const id of ['pan-up', 'pan-right', 'pan-down', 'pan-left']) f.el(id).click();
+    assert.deepEqual(moves.map(m => m.offset), [[0, -150], [150, 0], [0, 150], [-150, 0]]);
+    assert.ok(moves.every(m => m.duration === (reduceMotion ? 0 : 300)));
+    f.run('updateNorthNeedle()');
+    assert.equal(f.el('north-needle').style.transform, 'rotate(-90deg)');
+    f.el('map-north').click();
+    assert.equal(map.northDuration, reduceMotion ? 0 : 300);
+  }
+});
 
 test('MapLibre: nuevos fondos válidos, selección persistente y Solo calles sin teselas', async () => {
   const f = fixture(); f.loadFeatures([feature('ALAMEDA')]);

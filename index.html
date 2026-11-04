@@ -7,9 +7,9 @@
   <meta name="description" content="Explora el significado de 465 nombres de calles de Providencia. Mapa y catálogo con fuentes y estado de investigación.">
   <title>Calles con historia · Providencia</title>
   <link rel="stylesheet" href="./maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=basemaps-2">
+  <link rel="stylesheet" href="./style.css?v=orientation-1">
   <script defer src="./maplibre-gl.js"></script>
-  <script defer src="./app.js?v=basemaps-2"></script>
+  <script defer src="./app.js?v=orientation-1"></script>
 </head>
 <body>
 <header>
@@ -75,6 +75,15 @@
   <section class="map-section" aria-label="Mapa interactivo de calles">
     <div class="map-viewport">
     <div id="map"></div>
+    <div id="map-orientation" class="map-orientation" role="group" aria-label="Desplazar y orientar el mapa" hidden>
+      <button id="pan-up" class="pan-up" type="button" aria-label="Explorar hacia arriba" title="Explorar hacia arriba">↑</button>
+      <button id="pan-left" class="pan-left" type="button" aria-label="Explorar hacia la izquierda" title="Explorar hacia la izquierda">←</button>
+      <button id="map-north" class="map-north" type="button" aria-label="Orientar el mapa al norte" title="Volver al norte">
+        <span id="north-needle" aria-hidden="true">▲</span><span aria-hidden="true">N</span>
+      </button>
+      <button id="pan-right" class="pan-right" type="button" aria-label="Explorar hacia la derecha" title="Explorar hacia la derecha">→</button>
+      <button id="pan-down" class="pan-down" type="button" aria-label="Explorar hacia abajo" title="Explorar hacia abajo">↓</button>
+    </div>
     <div id="map-notice" class="map-status">
       <p id="map-status" role="status">Preparando el mapa…</p>
       <button id="retry-load" class="nav-btn" hidden>Volver a intentar</button>

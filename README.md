@@ -89,6 +89,8 @@ La investigación de nombres se actualiza continuamente mediante una **hoja de c
 
 ## Ejecución Local
 
+El control circular semitransparente permite explorar arriba, abajo, izquierda y derecha respecto de la pantalla. Su aguja indica el norte al girar el mapa; el botón **N** restablece la orientación norte sin cambiar el zoom. La brújula del control de navegación de MapLibre también permite girar arrastrando. Los botones se pueden activar con teclado y respetan la preferencia de movimiento reducido.
+
 No requiere bases de datos ni backend, solo un servidor estático para servir los archivos GeoJSON vía HTTP:
 
 ```sh

@@ -699,6 +699,7 @@ async function changeBasemap(styleKey) {
 }
 
 async function initializeMap() {
+  $('map-orientation').hidden = true;
   if (!window.maplibregl) {
     status('No se pudo cargar el visor. El catálogo y las fichas siguen disponibles.', () => location.reload());
     return;
@@ -716,7 +717,7 @@ async function initializeMap() {
       zoom: 13,
       attributionControl: false
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
+    map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'top-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: 'Geometrías: archivo aportado por el usuario' }), 'bottom-right');
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
     await new Promise((resolve, reject) => {
@@ -740,6 +741,9 @@ async function initializeMap() {
   }
 
   mapReady = true;
+  $('map-orientation').hidden = false;
+  updateNorthNeedle();
+  map.on('rotate', updateNorthNeedle);
   lastGoodStyle = map.getStyle();
   updateBasemapControls();
   restoreMapState();
@@ -832,6 +836,25 @@ async function start() {
 }
 
 // Event Listeners
+function updateNorthNeedle() {
+  if (!mapReady || !map) return;
+  $('north-needle').style.transform = `rotate(${-map.getBearing()}deg)`;
+}
+
+function panMap(dx, dy) {
+  if (!mapReady || !map) return;
+  const area = $('map').getBoundingClientRect();
+  const step = Math.min(160, Math.max(40, Math.min(area.width, area.height) * 0.25));
+  map.panBy([dx * step, dy * step], { duration: reducedMotion ? 0 : 300 });
+}
+
+for (const [id, dx, dy] of [['pan-up', 0, -1], ['pan-down', 0, 1], ['pan-left', -1, 0], ['pan-right', 1, 0]]) {
+  $(id).addEventListener('click', () => panMap(dx, dy));
+}
+$('map-north').addEventListener('click', () => {
+  if (mapReady && map) map.resetNorth({ duration: reducedMotion ? 0 : 300 });
+});
+
 $('search').addEventListener('input', filterCatalogue);
 $('type').addEventListener('change', filterCatalogue);
 $('state').addEventListener('change', filterCatalogue);

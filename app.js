@@ -344,6 +344,35 @@ function applyMapFilter() {
   map.setFilter('hit', filter);
 }
 
+// Display hierarchy by segment type, not an official functional road ranking.
+// Bridges use the street's aggregated types only to preserve avenue continuity.
+function streetClassExpression() {
+  return ['case', ['==', ['get', 'CLASE'], 'PUENTE'],
+    ['case', ['in', 'AUTOPISTA', ['coalesce', ['get', 'TIPOS_VIA'], '']], 'AUTOPISTA',
+      ['in', 'AVENIDA', ['coalesce', ['get', 'TIPOS_VIA'], '']], 'AVENIDA', 'CALLE'],
+    ['coalesce', ['get', 'CLASE'], 'CALLE']];
+}
+
+function streetScaleExpression(property) {
+  const widths = [[2, 1.5, 0.5, 0], [3.5, 3, 1.5, 0.7], [6, 5, 3.5, 2]];
+  const opacity = [[0.9, 0.85, 0.3, 0], [0.9, 0.9, 0.75, 0.55], [0.95, 0.95, 0.9, 0.85]];
+  const values = property === 'width' ? widths : opacity;
+  const expression = ['interpolate', ['linear'], ['zoom']];
+  [12, 14, 16].forEach((zoom, index) => {
+    const [motorway, avenue, street, minor] = values[index];
+    expression.push(zoom, ['match', streetClassExpression(),
+      'AUTOPISTA', motorway, 'AVENIDA', avenue,
+      ['PASAJE', 'PEATONAL'], minor, street]);
+  });
+  return expression;
+}
+
+// A transparent hit layer remains generous, but hidden minor roads cannot win clicks.
+function visibleHit(features, zoom) {
+  return (features || []).find((feature) => zoom > 12 ||
+    !['PASAJE', 'PEATONAL'].includes(feature.properties.CLASE));
+}
+
 function getStreetsLayersDefinition() {
   const filter = ['in', ['get', 'NOMBRE_ART'], ['literal', visibleNames]];
   return [
@@ -355,8 +384,8 @@ function getStreetsLayersDefinition() {
       layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: {
         'line-color': streetColorExpression(),
-        'line-width': ['interpolate', ['linear'], ['zoom'], 11, 1.8, 16, 4.5],
-        'line-opacity': 0.85
+        'line-width': streetScaleExpression('width'),
+        'line-opacity': streetScaleExpression('opacity')
       }
     },
     {
@@ -629,18 +658,23 @@ async function initializeMap() {
   });
 
   map.on('click', 'hit', (event) => {
-    if (event.features?.length) {
-      selectStreet(event.features[0].properties.NOMBRE_ART, false);
+    const feature = visibleHit(event.features, map.getZoom());
+    if (feature) {
+      selectStreet(feature.properties.NOMBRE_ART, false);
       if (compactLayout.matches) $('detail').scrollIntoView({ block: 'nearest', behavior: reducedMotion ? 'instant' : 'smooth' });
     }
   });
 
   const tooltip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 12 });
   map.on('mousemove', 'hit', (event) => {
-    map.getCanvas().style.cursor = 'pointer';
-    if (event.features?.length) {
-      tooltip.setLngLat(event.lngLat).setText(event.features[0].properties.NOMBRE_ART).addTo(map);
-    }
+    const feature = visibleHit(event.features, map.getZoom());
+    map.getCanvas().style.cursor = feature ? 'pointer' : '';
+    if (feature) tooltip.setLngLat(event.lngLat).setText(feature.properties.NOMBRE_ART).addTo(map);
+    else tooltip.remove();
+  });
+  map.on('zoomstart', () => {
+    tooltip.remove();
+    map.getCanvas().style.cursor = '';
   });
   map.on('mouseleave', 'hit', () => {
     map.getCanvas().style.cursor = '';

@@ -128,6 +128,77 @@ function fixture({ compact = false, storageBlocked = false } = {}) {
 
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 
+// Evaluate the small expression subset used by the display hierarchy.
+function evaluateScale(expr, properties, zoom) {
+  if (!Array.isArray(expr)) return expr;
+  const ev = (value) => evaluateScale(value, properties, zoom);
+  switch (expr[0]) {
+    case 'get': return properties[expr[1]];
+    case 'zoom': return zoom;
+    case 'coalesce': return expr.slice(1).map(ev).find((v) => v != null);
+    case '==': return ev(expr[1]) === ev(expr[2]);
+    case 'in': return ev(expr[2]).includes(ev(expr[1]));
+    case 'case':
+      for (let i = 1; i < expr.length - 1; i += 2) if (ev(expr[i])) return ev(expr[i + 1]);
+      return ev(expr.at(-1));
+    case 'match': {
+      const input = ev(expr[1]);
+      for (let i = 2; i < expr.length - 1; i += 2) {
+        if (Array.isArray(expr[i]) ? expr[i].includes(input) : expr[i] === input) return ev(expr[i + 1]);
+      }
+      return ev(expr.at(-1));
+    }
+    case 'interpolate': {
+      if (zoom <= expr[3]) return ev(expr[4]);
+      for (let i = 5; i < expr.length; i += 2) {
+        if (zoom <= expr[i]) {
+          const t = (zoom - expr[i - 2]) / (expr[i] - expr[i - 2]);
+          return ev(expr[i - 1]) * (1 - t) + ev(expr[i + 1]) * t;
+        }
+      }
+      return ev(expr.at(-1));
+    }
+    default: throw new Error('Unexpected expression: ' + expr[0]);
+  }
+}
+
+test('jerarquía: grosores ordenados, aparición gradual y valores acotados', () => {
+  const f = fixture();
+  const width = f.run('streetScaleExpression("width")');
+  const opacity = f.run('streetScaleExpression("opacity")');
+  for (const zoom of [10, 12, 12.5, 13, 14, 15, 16, 19]) {
+    const sizes = ['AUTOPISTA', 'AVENIDA', 'CALLE', 'PASAJE'].map(CLASE => evaluateScale(width, { CLASE }, zoom));
+    assert.ok(sizes.every((v, i) => !i || v < sizes[i - 1]));
+    for (const CLASE of ['AUTOPISTA', 'AVENIDA', 'CALLE', 'PASAJE', 'PEATONAL']) {
+      const alpha = evaluateScale(opacity, { CLASE }, zoom);
+      assert.ok(alpha >= 0 && alpha <= 1);
+    }
+  }
+  assert.equal(evaluateScale(width, { CLASE: 'PASAJE' }, 12), 0);
+  assert.equal(evaluateScale(width, { CLASE: 'PASAJE' }, 13), 0.35);
+  assert.equal(evaluateScale(width, { CLASE: 'PASAJE' }, 16), 2);
+  assert.equal(evaluateScale(width, { CLASE: 'PUENTE', TIPOS_VIA: 'AVENIDA | PUENTE' }, 16), 5);
+  assert.equal(evaluateScale(width, { CLASE: 'PUENTE', TIPOS_VIA: 'AUTOPISTA | CALETERA | PUENTE' }, 16), 6);
+  for (const CLASE of ['CALETERA', 'PUENTE', 'OTRO', undefined]) {
+    assert.equal(evaluateScale(width, { CLASE }, 16), 3.5);
+  }
+});
+
+test('jerarquía: tramos ocultos no capturan clic y selección sigue accesible', () => {
+  const f = fixture();
+  const minor = feature('PASAJE'); minor.properties.CLASE = 'PASAJE';
+  const street = feature('CALLE'); street.properties.CLASE = 'CALLE';
+  f.context.hits = [minor, street];
+  assert.equal(f.run('visibleHit(hits, 12).properties.NOMBRE_ART'), 'CALLE');
+  assert.equal(f.run('visibleHit(hits, 13).properties.NOMBRE_ART'), 'PASAJE');
+  assert.equal(f.run('visibleHit([hits[0]], 12)'), undefined);
+  f.loadFeatures([minor, street]); const map = f.readyMap();
+  f.run('selectStreet("PASAJE", false)');
+  assert.equal(map.style.sources.selection.data.features[0].properties.NOMBRE_ART, 'PASAJE');
+  assert.equal(map.getLayer('selection-line').paint['line-width'], 5);
+  assert.equal(f.el('results').children.length, 2);
+});
+
 test('arranca sin localStorage y mantiene el catálogo cuando el visor no está disponible', async () => {
   const f = fixture({ storageBlocked: true });
   f.context.fetch = async () => ({ ok: true, json: async () => ({ type: 'FeatureCollection', features: [feature('ANDRÉS BELLO')] }) });

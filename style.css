@@ -571,6 +571,7 @@ label {
   font-size: 9px;
   letter-spacing: 0.5px;
 }
+.hierarchy-note { margin: 6px 0 0; font-size: 11px; line-height: 1.4; color: var(--text-main); max-width: 320px; }
 .legend-items {
   display: flex;
   flex-wrap: wrap;

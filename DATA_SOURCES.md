@@ -26,7 +26,13 @@ El color conserva el estado de investigación. La selección mantiene su halo y 
 
 Referencia consultada el 04-11-2026: https://maplibre.org/maplibre-style-spec/expressions/ (`interpolate`, `zoom`, `match`) y https://maplibre.org/maplibre-style-spec/layers/ (`line-width`, `line-opacity`).
 
-### Etiquetas del catálogo
+### Cuatro fondos con estilos MapLibre propios
+
+Claro usa una paleta cálida y discreta; Oscuro, tonos verdes nocturnos; Detallado distingue parques, agua y edificios con mayor contraste cromático. Las paletas están centralizadas en `basemapPalettes` de `app.js` y se aplican mediante `customizeBasemap` a los estilos vectoriales de OpenFreeMap. Se conservan sus fuentes, atribución, filtros, niveles de zoom y geometrías. Satélite mantiene las imágenes y créditos de Esri. Los cuatro fondos reciben las mismas calles temáticas y etiquetas del catálogo. MapLibre es el motor y la especificación de estilo; OpenFreeMap/OpenStreetMap y Esri siguen siendo proveedores de datos.
+
+### Reglas de etiquetas
+
+Opciones adicionales: **Papel** aplica una paleta crema, sin representar cartografía histórica; **Alto contraste** usa fondo blanco y contornos oscuros, sin constituir una certificación de accesibilidad; **Solo calles** usa un fondo neutro sin teselas externas. Este último mantiene las geometrías locales, las fichas y las etiquetas; los glifos de las etiquetas siguen dependiendo de OpenFreeMap. Papel y Alto contraste reutilizan las fuentes y atribuciones del estilo Positron. El selector admite desplazamiento vertical para que las siete opciones sean accesibles en pantallas pequeñas.
 
 Las etiquetas usan `NOMBRE_ART` y la misma clasificación por tramo: autopistas y avenidas desde zoom 12, calles y caleteras desde 14, pasajes y peatonales desde 16. Los puentes conservan la regla de continuidad descrita arriba. Los umbrales habilitan etiquetas; el motor puede omitirlas por colisión, curvatura o falta de longitud del tramo. El tamaño aumenta de 11 a 15 px entre zoom 12 y 19. Texto oscuro con halo blanco permite distinguir nombres sobre los cuatro fondos.
 

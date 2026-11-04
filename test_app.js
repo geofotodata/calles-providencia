@@ -90,7 +90,7 @@ function fixture({ compact = false, storageBlocked = false } = {}) {
   document.activeElement = document.body;
   document.createElement = () => new Element();
   document.createDocumentFragment = () => Object.assign(new Element(), { fragment: true });
-  const options = ['positron', 'dark', 'liberty', 'satellite'].map((style) => Object.assign(new Element(), { dataset: { style } }));
+  const options = [...html.matchAll(/data-style="([^"]+)"/g)].map((match) => Object.assign(new Element(), { dataset: { style: match[1] } }));
   document.querySelectorAll = (selector) => selector === '.basemap-option' ? options : [];
   document.querySelector = () => new Element('header');
   el('detail').append(...['detail-name', 'detail-expand', 'detail-body', 'prev-street', 'next-street', 'focus-street', 'close-detail'].map(el));
@@ -128,6 +128,60 @@ function fixture({ compact = false, storageBlocked = false } = {}) {
 }
 
 const flush = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
+
+test('MapLibre: nuevos fondos válidos, selección persistente y Solo calles sin teselas', async () => {
+  const f = fixture(); f.loadFeatures([feature('ALAMEDA')]);
+  const map = f.readyMap(); f.run('selectStreet("ALAMEDA", false)');
+  let requests = 0;
+  f.context.fetch = async () => { requests++; return { ok: true, json: async () => ({ version: 8, sources: {}, layers: [
+    { id: 'background', type: 'background', paint: { 'background-color': '#ffffff' } }
+  ] }) }; };
+  for (const key of ['paper', 'contrast', 'streetsOnly']) {
+    await f.run(`changeBasemap("${key}")`);
+    assert.equal(f.saved.get('basemap'), key);
+    assert.deepEqual(styleSpec.validateStyleMin(map.style).map(e => e.message), []);
+    assert.equal(map.style.sources.selection.data.features[0].properties.NOMBRE_ART, 'ALAMEDA');
+    const selected = f.document.querySelectorAll('.basemap-option').filter(o => o.attrs['aria-pressed'] === 'true');
+    assert.equal(selected.length, 1);
+    assert.equal(selected[0].dataset.style, key);
+  }
+  assert.equal(requests, 2);
+  assert.ok(Object.values(map.style.sources).every(s => s.type === 'geojson'));
+  const keys = Array.from(f.run('Object.keys(basemaps)')).sort();
+  const menu = f.document.querySelectorAll('.basemap-option').map(o => o.dataset.style).sort();
+  assert.deepEqual(menu, keys);
+});
+
+test('MapLibre: cuatro opciones conservan fuentes, filtros y fotografía con paletas propias', async () => {
+  const f = fixture(); f.loadFeatures([feature('ALAMEDA'), feature('PASAJE')]);
+  const map = f.readyMap();
+  f.run('selectStreet("ALAMEDA", false)');
+  f.el('search').value = 'ALAMEDA'; f.run('filterCatalogue()');
+  const base = { version: 8, sources: { tiles: { type: 'vector', tiles: ['https://example.org/{z}/{x}/{y}.pbf'], attribution: 'Original' } }, layers: [
+    { id: 'background', type: 'background', paint: { 'background-color': '#000000' } },
+    ...['water', 'park', 'building'].map(source => ({ id: source, type: 'fill', source: 'tiles', 'source-layer': source, paint: { 'fill-color': '#000000' } }))
+  ] };
+  f.context.fetch = async () => ({ ok: true, json: async () => base });
+  const colors = new Set();
+  for (const key of ['positron', 'dark', 'liberty', 'satellite']) {
+    await f.run(`changeBasemap("${key}")`);
+    assert.equal(map.style.metadata['calles:basemap'], key);
+    assert.deepEqual(styleSpec.validateStyleMin(map.style).map(e => e.message), []);
+    assert.equal(map.style.sources.selection.data.features[0].properties.NOMBRE_ART, 'ALAMEDA');
+    assert.deepEqual(Array.from(map.getLayer('streets').filter[2][1]), ['ALAMEDA']);
+    if (key === 'satellite') {
+      const original = JSON.parse(JSON.stringify(f.run('basemaps.satellite.style')));
+      assert.deepEqual(map.style.sources['esri-satellite'], original.sources['esri-satellite']);
+      assert.deepEqual(map.getLayer('satellite-tiles'), original.layers[0]);
+    } else {
+      colors.add(map.getLayer('background').paint['background-color']);
+      assert.deepEqual(map.style.sources.tiles, base.sources.tiles);
+      assert.notEqual(map.getLayer('park').paint['fill-color'], '#000000');
+    }
+  }
+  assert.equal(colors.size, 3);
+  assert.equal(base.layers[0].paint['background-color'], '#000000');
+});
 
 test('MapLibre: valida estilos reales, temas y expresiones con el paquete oficial', () => {
   const f = fixture(); f.loadFeatures([feature('AVENIDA'), feature('PASAJE')]);

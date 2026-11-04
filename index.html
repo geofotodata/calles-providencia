@@ -7,9 +7,9 @@
   <meta name="description" content="Explora el significado de 465 nombres de calles de Providencia. Mapa y catálogo con fuentes y estado de investigación.">
   <title>Calles con historia · Providencia</title>
   <link rel="stylesheet" href="./maplibre-gl.css">
-  <link rel="stylesheet" href="./style.css?v=hierarchy-1">
+  <link rel="stylesheet" href="./style.css?v=basemaps-2">
   <script defer src="./maplibre-gl.js"></script>
-  <script defer src="./app.js?v=labels-1"></script>
+  <script defer src="./app.js?v=basemaps-2"></script>
 </head>
 <body>
 <header>
@@ -88,25 +88,37 @@
           <span class="chevron" aria-hidden="true">▾</span>
         </button>
         <div class="basemap-dropdown" id="basemap-dropdown" hidden>
+          <button class="basemap-option" data-style="paper" type="button">
+            <span class="option-icon" aria-hidden="true">📜</span>
+            <span class="option-text"><strong>Papel</strong><small>Tonos cálidos y suaves</small></span>
+          </button>
+          <button class="basemap-option" data-style="contrast" type="button">
+            <span class="option-icon" aria-hidden="true">◐</span>
+            <span class="option-text"><strong>Alto contraste</strong><small>Fondo blanco y contornos definidos</small></span>
+          </button>
+          <button class="basemap-option" data-style="streetsOnly" type="button">
+            <span class="option-icon" aria-hidden="true">⌁</span>
+            <span class="option-text"><strong>Solo calles</strong><small>Catálogo sin mapa de fondo</small></span>
+          </button>
           <button class="basemap-option active" data-style="positron" type="button">
             <span class="option-icon" aria-hidden="true">☀️</span>
             <span class="option-text">
               <strong>Claro</strong>
-              <small>Positron minimalista</small>
+              <small>Fondo claro y minimalista</small>
             </span>
           </button>
           <button class="basemap-option" data-style="dark" type="button">
             <span class="option-icon" aria-hidden="true">🌙</span>
             <span class="option-text">
               <strong>Oscuro</strong>
-              <small>Dark Matter nocturno</small>
+              <small>Fondo oscuro para explorar</small>
             </span>
           </button>
           <button class="basemap-option" data-style="liberty" type="button">
             <span class="option-icon" aria-hidden="true">🌳</span>
             <span class="option-text">
               <strong>Detallado</strong>
-              <small>Liberty con vías y áreas verdes</small>
+              <small>Edificios, vías y áreas verdes</small>
             </span>
           </button>
           <button class="basemap-option" data-style="satellite" type="button">

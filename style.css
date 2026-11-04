@@ -463,6 +463,9 @@ label {
 }
 
 .basemap-dropdown {
+  max-height: min(420px, 60dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   position: absolute;
   top: calc(100% + 6px);
   left: 0;

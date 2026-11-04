@@ -483,6 +483,20 @@ function setupMapLayers() {
 }
 
 const basemaps = {
+  paper: {
+    name: 'Papel', type: 'url',
+    url: 'https://tiles.openfreemap.org/styles/positron', theme: 'light'
+  },
+  contrast: {
+    name: 'Alto contraste', type: 'url',
+    url: 'https://tiles.openfreemap.org/styles/positron', theme: 'light'
+  },
+  streetsOnly: {
+    name: 'Solo calles', type: 'json', theme: 'light',
+    style: { version: 8, sources: {}, layers: [
+      { id: 'background', type: 'background', paint: { 'background-color': '#f8faf7' } }
+    ] }
+  },
   positron: {
     name: 'Claro',
     type: 'url',
@@ -528,6 +542,51 @@ const basemaps = {
     theme: 'dark'
   }
 };
+
+// Local MapLibre palettes; provider sources, attribution and geometry stay intact.
+const basemapPalettes = {
+  paper: { background: '#f4ead5', land: '#eee0c5', park: '#d9dfbf', water: '#c3d4d1', building: '#e0cfb3', edge: '#c7b596', road: '#fff9ec', text: '#57482f', halo: '#fff9ec' },
+  contrast: { background: '#ffffff', land: '#f4f4f4', park: '#e0e8df', water: '#b1ccda', building: '#d3d3d3', edge: '#656565', road: '#ffffff', text: '#111111', halo: '#ffffff' },
+  positron: { background: '#f5f3ec', land: '#eeede5', park: '#dce8d9', water: '#bbd8df', building: '#e1dfd5', edge: '#d2d3c8', road: '#ffffff', text: '#40534e', halo: '#f5f3ec' },
+  dark: { background: '#13201e', land: '#192925', park: '#203d31', water: '#173944', building: '#283b35', edge: '#3a5049', road: '#31473f', text: '#d7e5dd', halo: '#13201e' },
+  liberty: { background: '#f2efe5', land: '#e8e6d9', park: '#bcd7ab', water: '#9ccbdc', building: '#d8cdbc', edge: '#c3b8a6', road: '#fff5da', text: '#344b40', halo: '#fffaf0' }
+};
+
+function customizeBasemap(baseStyle, styleKey) {
+  const style = JSON.parse(JSON.stringify(baseStyle));
+  const palette = basemapPalettes[styleKey];
+  style.name = 'Calles con historia · ' + basemaps[styleKey].name;
+  style.metadata = { ...style.metadata, 'calles:basemap': styleKey };
+  if (!palette) return style; // Satellite remains photographic.
+  for (const layer of style.layers || []) {
+    const source = layer['source-layer'];
+    const paint = layer.paint = { ...layer.paint };
+    if (layer.type === 'background') paint['background-color'] = palette.background;
+    if (layer.type === 'fill') {
+      if (source === 'water') paint['fill-color'] = palette.water;
+      else if (source === 'park' || (source === 'landuse' && /park|garden/.test(layer.id))) paint['fill-color'] = palette.park;
+      else if (source === 'landcover') {
+        paint['fill-color'] = /wood|grass|forest/.test(layer.id) ? palette.park : palette.land;
+      } else if (source === 'landuse') paint['fill-color'] = palette.land;
+      else if (source === 'building') {
+        paint['fill-color'] = palette.building;
+        paint['fill-outline-color'] = palette.edge;
+      }
+    }
+    if (source === 'building' && layer.type === 'fill-extrusion') paint['fill-extrusion-color'] = palette.building;
+    if (layer.type === 'line') {
+      if (source === 'waterway') paint['line-color'] = palette.water;
+      else if (source === 'transportation' && !/rail/.test(layer.id)) {
+        paint['line-color'] = /casing|subtle/.test(layer.id) ? palette.edge : palette.road;
+      }
+    }
+    if (layer.type === 'symbol' && layer.layout?.['text-field'] && !layer.layout?.['icon-image']) {
+      paint['text-color'] = palette.text;
+      paint['text-halo-color'] = palette.halo;
+    }
+  }
+  return style;
+}
 
 let currentBasemap = 'positron';
 
@@ -603,7 +662,7 @@ async function changeBasemap(styleKey) {
     if (controller.signal.aborted) throw new Error('Basemap request timed out');
     replaced = true;
     styleChanging = true;
-    await replaceMapStyle(injectLayersIntoStyle(rawStyle), controller.signal);
+    await replaceMapStyle(injectLayersIntoStyle(customizeBasemap(rawStyle, styleKey)), controller.signal);
     if (request !== basemapRequest) return;
     styleChanging = false;
     restoreMapState();
